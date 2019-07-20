@@ -88,6 +88,12 @@
 		  	  	  curPos != list;       \
 		  	  	  curPos=curPos->next	\
 	    )
+#define List_ForEach2(list, curPos)\
+	 for (   curPos = (list)->prev;  	\
+		  	  	  curPos != list;       \
+		  	  	  curPos=curPos->prev	\
+	    )
+
 /*
 void AddToSortedList(name_list_t list,name_node_t *p)
 {

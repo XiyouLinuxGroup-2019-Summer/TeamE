@@ -1,6 +1,11 @@
 #include <stdio.h>
 #include <string.h>
 #include "List.h"
+#define List_ForEach2(list, curPos)\
+	 for (   curPos = (list)->prev;  	\
+		  	  	  curPos != list;       \
+		  	  	  curPos=curPos->prev	\
+	    )
 typedef struct 
 {
     int age;
@@ -65,9 +70,9 @@ int main()
     {
         printf("名字:%s 年龄:%d\n",p->data.name,p->data.age);
     }
-    SortByNum(list);
+    //SortByNum(list);
     printf("\n按年龄排序后:\n");
-    List_ForEach(list,p)
+    List_ForEach2(list,p)
     {
         printf("名字:%s 年龄:%d\n",p->data.name,p->data.age);
     }

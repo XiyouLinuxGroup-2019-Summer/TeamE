@@ -13,6 +13,8 @@
 #define PARAM_A 1 //-a显示所有文件
 #define PARAM_L 2 //-l一行只显示一个文件的信息
 #define PARAM_R 4 //展示所有子目录中的文件
+#define PARAM_r 8//逆序输出
+#define PARAM_f 16//不排序
 #define MAXROWLEN 150 //一行显示的最多字符数
 
 int g_leave_len = MAXROWLEN;//一行剩余长度
@@ -209,6 +211,13 @@ void display(int flag,char *pathname,name_list_t list)
                 List_AddTail(list,node);
             }
             break;
+        case PARAM_r:
+            if(name[0] != '.') display_single(name);
+            break;
+        case PARAM_f:
+            if(name[0] != '.') display_single(name);
+            break;
+
 
 
             
@@ -229,7 +238,7 @@ void display_single(char *name)
 
     len = strlen(name);
     len = g_maxlen - len;
-    printf("%-s",name);
+    printf("\033[41;36m%-s\033[0m",name);
     
     for(i = 0;i<len;i++)    printf(" ");
     printf("  ");
@@ -305,8 +314,15 @@ void display_dir(int flag_param,char *path)
 
    /* for(i = 0;i<count;i++)//单个打印文件 */
        /* display(flag_param,file_names[i],list,i,count-1); */
+   if(!(flag_param&16))
     SortList(cur_list);
     name_list_t p;
+    if((flag_param&8))
+    List_ForEach2(cur_list,p)
+    {
+        display(flag_param,p->data.name,list);
+    }
+    else 
     List_ForEach(cur_list,p)
     {
         display(flag_param,p->data.name,list);
@@ -360,6 +376,9 @@ int main(int argc,char ** argv)
    
         else if(param[i] == 'R')     flag_param |= PARAM_R;
         
+        else if(param[i] == 'r')     flag_param |= PARAM_r;
+        
+        else if(param[i] == 'f')     flag_param |= PARAM_f; 
         else
         {
             printf("my_ls:invalid option -%c\n",param[i]);
