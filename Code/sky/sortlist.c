@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include "List.h"
 typedef struct 
 {
@@ -19,28 +20,28 @@ void AddToSortedList(name_list_t list,name_node_t *p)
     else{
               cur = list->next;
               while(cur != list){
-                  if(p->data.age < cur->data.age) break;
+                  if(strcmp(p->data.name,cur->data.name) < 0) break;
                   cur = cur->next;
               }
               List_InsertBefore(cur,p);
     }
     return;
 }
-#define SortByNum(list) {\
-    int flag = 1;\
-    name_list_t listLeft;\
-    List_Init(listLeft,name_node_t);\
-   if(!list)    flag = 0;\
-    if(flag){\
-   list->prev->next     =   NULL;//将循环链表最后一个节点断开\
-   listLeft     =   list->next;  //listleft指向第一个数据节点\
-   list->next   =     list->prev = list;//将list链表置为空\
-   while(listLeft != NULL){\
-       name_list_t p;\
-       p = listLeft;\
-       listLeft = listLeft->next;\
-       AddToSortedList(list,p);\
-   }}\
+void  SortByNum(name_list_t list) {
+    int flag = 1;
+    name_list_t listLeft;
+    List_Init(listLeft,name_node_t);
+   if(!list)    flag = 0;
+    if(flag){
+   list->prev->next     =   NULL;//将循环链表最后一个节点断开
+   listLeft     =   list->next;  //listleft指向第一个数据节点
+   list->next   =     list->prev = list;//将list链表置为空
+   while(listLeft != NULL){
+       name_list_t p;
+       p = listLeft;
+       listLeft = listLeft->next;
+       AddToSortedList(list,p);
+   }}
 }
 int main()
 {
@@ -74,4 +75,3 @@ int main()
     List_Destroy(list,name_node_t);
     return 0;
 }
-}}

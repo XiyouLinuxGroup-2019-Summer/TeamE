@@ -29,7 +29,36 @@ typedef struct name_node
 }name_node_t;
 typedef name_node_t *name_list_t;
 void display_single(char *name);
-
+void AddToSortedList(name_list_t list,name_node_t *p)
+{
+    name_node_t *cur;
+    if(!list) {List_AddTail(list,p);}
+    else{
+              cur = list->next;
+              while(cur != list){
+                  if(strcmp(p->data.name,cur->data.name) < 0) break;
+                  cur = cur->next;
+              }
+              List_InsertBefore(cur,p);
+    }
+    return;
+}
+void  SortList(name_list_t list) {
+    int flag = 1;
+    name_list_t listLeft;
+    List_Init(listLeft,name_node_t);
+   if(!list)    flag = 0;
+    if(flag){
+   list->prev->next     =   NULL;//将循环链表最后一个节点断开
+   listLeft     =   list->next;  //listleft指向第一个数据节点
+   list->next   =     list->prev = list;//将list链表置为空
+   while(listLeft != NULL){
+       name_list_t p;
+       p = listLeft;
+       listLeft = listLeft->next;
+       AddToSortedList(list,p);
+   }}
+}
 //获取文件属性并且打印
 void display_attribute(struct stat buf,char *name)
 {
@@ -138,7 +167,8 @@ void display(int flag,char *pathname,name_list_t list)
             }
             break;
         case PARAM_R:
-            if(name[0] != '.') display_single(name);
+            if(name[0] != '.') 
+                display_single(name);
             if(S_ISDIR(buf.st_mode))
             {
                 //printf("yes\n");
@@ -149,6 +179,38 @@ void display(int flag,char *pathname,name_list_t list)
                 List_AddTail(list,node);
             }
             break;
+       case PARAM_R + PARAM_A:
+            //if(name[0] != '.') 
+                display_single(name);
+            if(S_ISDIR(buf.st_mode) && name[0] != '.')
+            {
+                //printf("yes\n");
+                name_node_t *node =  (name_list_t)malloc(sizeof(name_node_t));
+                strcpy(node->data.name,pathname);
+                node->data.name[strlen(pathname)] = '/';
+                node->data.name[strlen(pathname)+1] = '\0';
+                List_AddTail(list,node);
+            }
+            break;
+       case PARAM_R + PARAM_L:
+            if(name[0] != '.')
+            {
+                display_attribute(buf,name);
+                printf(" %-s\n",name);
+            }
+
+            if(S_ISDIR(buf.st_mode))
+            {
+                //printf("yes\n");
+                name_node_t *node =  (name_list_t)malloc(sizeof(name_node_t));
+                strcpy(node->data.name,pathname);
+                node->data.name[strlen(pathname)] = '/';
+                node->data.name[strlen(pathname)+1] = '\0';
+                List_AddTail(list,node);
+            }
+            break;
+
+
             
         default:
             break;
@@ -243,7 +305,7 @@ void display_dir(int flag_param,char *path)
 
    /* for(i = 0;i<count;i++)//单个打印文件 */
        /* display(flag_param,file_names[i],list,i,count-1); */
-   
+    SortList(cur_list);
     name_list_t p;
     List_ForEach(cur_list,p)
     {

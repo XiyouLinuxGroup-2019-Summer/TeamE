@@ -2,6 +2,9 @@
 #define LIST_H_
 #include <stdlib.h>
 #include <assert.h>
+
+
+
 /*��ʼ������list������Ϊ��ͷ����˫��ѭ������*/
 #define List_Init(list,list_node_t) {					\
 		list=(list_node_t*)malloc(sizeof(list_node_t)); \
@@ -85,101 +88,37 @@
 		  	  	  curPos != list;       \
 		  	  	  curPos=curPos->next	\
 	    )
-
-
-
-
-
-//分页器
-//��ҳ���ݽṹ�壬��Ʒ�ҳ������
-typedef struct
+/*
+void AddToSortedList(name_list_t list,name_node_t *p)
 {
-	int totalRecords;	//�ܼ�¼��
-	int offset;			//��ǰҳ��ʼ��¼����ڵ�һ����¼��ƫ�Ƽ�¼��
-	int pageSize;		//ҳ���С
-	void *curPos;		//��ǰҳ��ʼ��¼�������еĽ���ַ
-}Pagination_t;
-
-//���ݷ�ҳ��paging��ƫ����offset����ҳ����λ������list�Ķ�Ӧλ��
-#define List_Paging(list, paging, list_node_t) {			\
-		if(paging.offset+paging.pageSize>=paging.totalRecords){	\
-			Paging_Locate_LastPage(list, paging, list_node_t);	}\
-		else {													\
-			int i;												\
-			list_node_t * pos=(list)->next;						\
-			for( i=0; i<paging.offset && pos!=list ; i++) 		\
-			   pos=pos->next;		 							\
-			paging.curPos=(void*)pos;							\
-		}														\
-	}
-
-//����ҳ��paging��λ������list�ĵ�һҳ
-#define Paging_Locate_FirstPage(list, paging) { \
-		paging.offset=0;						\
-		paging.curPos=(void *)((list)->next);	\
-	}
-
-//����ҳ��paging��λ������list�����һҳ
-#define Paging_Locate_LastPage(list, paging, list_node_t) {	\
-	int i=paging.totalRecords % paging.pageSize;	\
-	if (0==i && paging.totalRecords>0)				\
-		i=paging.pageSize;							\
-	paging.offset=paging.totalRecords-i;			\
-	list_node_t * pos=(list)->prev;					\
-	for(;i>1;i--)									\
-		pos=pos->prev;								\
-	paging.curPos=(void*)pos;						\
-													\
+    name_node_t *cur;
+    if(!list) {List_AddTail(list,p);}
+    else{
+              cur = list->next;
+              while(cur != list){
+                  if(p->data.age < cur->data.age) break;
+                  cur = cur->next;
+              }
+              List_InsertBefore(cur,p);
+    }
+    return;
 }
-
-//��������list����ҳ��paging,ʹ��ָ��curPos���α���pagingָ��ҳ����ÿ�����
-//����iΪ���ͼ���������
-#define Paging_ViewPage_ForEach(list, paging, list_node_t, pos, i) 	\
-	for (i=0, pos = (list_node_t *) (paging.curPos);	\
-			pos != list && i < paging.pageSize; 		\
-			i++, pos=pos->next)							\
-
-
-//��������list,����ҳ��paging��ǰ�����ƶ�offsetPage��ҳ��.
-//��offsetPage<0ʱ����ǰ������ͷ�����ƶ�|offsetPage|��ҳ��
-//��offsetPage>0ʱ�������ĩβ�����ƶ�offsetPage��ҳ��
-#define Paging_Locate_OffsetPage(list, paging, offsetPage, list_node_t) {\
-	int offset=offsetPage*paging.pageSize;			\
-	list_node_t *pos=(list_node_t *)paging.curPos;	\
-	int i;											\
-	if(offset>0){									\
-		if( paging.offset + offset >= paging.totalRecords )	{\
-			Paging_Locate_LastPage(list, paging, list_node_t);	\
-		}else {												\
-			for(i=0; i<offset; i++ )						\
-				pos=pos->next;								\
-			paging.offset += offset;						\
-			paging.curPos= (void *)pos;						\
-		}													\
-	}else{													\
-		if( paging.offset + offset <= 0 ){					\
-			Paging_Locate_FirstPage(list, paging);			\
-		}else {												\
-			for(i=offset; i<0; i++ )						\
-				pos	= pos->prev;							\
-			paging.offset += offset;						\
-			paging.curPos= pos;								\
-		}													\
-	}														\
+void  SortByNum(name_list_t list) {
+    int flag = 1;
+    name_list_t listLeft;
+    List_Init(listLeft,name_node_t);
+   if(!list)    flag = 0;
+    if(flag){
+   list->prev->next     =   NULL;//将循环链表最后一个节点断开
+   listLeft     =   list->next;  //listleft指向第一个数据节点
+   list->next   =     list->prev = list;//将list链表置为空
+   while(listLeft != NULL){
+       name_list_t p;
+       p = listLeft;
+       listLeft = listLeft->next;
+       AddToSortedList(list,p);
+   }}
 }
-
-//���ݷ�ҳ��paging���㵱ǰ��ҳ��
-#define Paging_CurPage(paging)(0==(paging).totalRecords?0:1+(paging).offset/(paging).pageSize)
-
-//���ݷ�ҳ��paging������ܵ�ҳ��
-#define Paging_TotalPages(paging)(((paging).totalRecords%(paging).pageSize==0)?\
-	(paging).totalRecords/(paging).pageSize:\
-	(paging).totalRecords/(paging).pageSize+1)
-
-//����paging�жϵ�ǰҳ���Ƿ�Ϊ��һҳ�����Ϊtrue��ʾ�ǣ�����false
-#define Paging_IsFirstPage(paging) (Paging_CurPage(paging)<=1)
-
-//����paging�жϵ�ǰҳ���Ƿ�Ϊ���һҳ�����Ϊtrue��ʾ�ǣ�����false
-#define Paging_IsLastPage(paging) (Paging_CurPage(paging)>=Paging_TotalPages(paging))
+*/
 #endif /* LIST_H_ */
 
