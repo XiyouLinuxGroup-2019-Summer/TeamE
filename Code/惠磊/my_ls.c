@@ -17,6 +17,8 @@
 #define PARAM_R 4      //-R 递归显示目录
 #define MAXROWLEN 80    //一行显示的最多字符数
 
+#define BLUE                 "\e[0;34m"
+#define L_BLUE               "\e[1;34m"
 void display_dir(int flag_param,char *path);
 int g_leave_len = MAXROWLEN;       //一行剩余长度,用于输出对齐
 int g_maxlen;        //存放某目录下最长文件名的长度
@@ -28,15 +30,10 @@ void my_err(const char * err_string,int line)
 	fprintf(stderr,"line:%d ",line);
 	perror(err_string);
 }
-
-/*void displayR_single(char *name)
-{
-}
-
-*/
 // 选项 l 获取文件属性并打印
 void display_attribute(struct stat buf,char *name)
 {
+
 	char buf_time[32];
 	struct passwd *psd;  //从该结构体中获取文件所有者的用户名
 	struct group *grp;    //从该结构体中获取文件所有者所属组的组名
@@ -94,7 +91,7 @@ void display_attribute(struct stat buf,char *name)
 	return ;
 }
 //在没有使用 -l 选项时 打印一个文件名,打印时上下行对齐
-void display_single(char *name)
+void display_single(char *name,int flag)
 {
 	int i,len;
 
@@ -108,7 +105,13 @@ void display_single(char *name)
 	len = strlen(name);
 	len = g_maxlen - len;
 	printf( " %-s",name);
-
+				   /*    if(flag == 1)
+				       {
+					       len = printf("\033[34m %-s\033[0m\n", name);
+				       }
+				       else    printf( " %-s\n",name);
+				       */
+	len = g_maxlen - len;
 	for(i = 0;i < len;i++)  printf( " ");
 
 	printf( " ");
@@ -128,6 +131,9 @@ void display(int flag,char *pathname)
 	int i,j;
 	struct stat buf;
 	char name[NAME_MAX + 1];
+	char temp[PATH_MAX];
+
+
 
 	//从路径中解析出文件名
 	
@@ -147,39 +153,57 @@ void display(int flag,char *pathname)
 	{
 		my_err("stat",__LINE__);
 	}
+	int flag_color= 0;
+	if(S_ISDIR(buf.st_mode))  flag_color = 1;;  //判断是否为目录文件
 
 	switch(flag)
 	{
 		case PARAM_NONE : //没有选项
-			if(name[0] != '.') display_single(name); 
+			if(name[0] != '.') display_single(name,flag_color); 
 			break;
-		case PARAM_A : display_single(name);  break;
+		case PARAM_A : display_single(name,flag_color);  break;
 		case PARAM_L : if(name[0] != '.')
 			       {
 				       display_attribute(buf,name);
-				       printf( " %-s\n",name);
+				       if(flag_color == 1)
+				       {
+					       printf("\033[34m %s\033[0m\n", name);
+				       }
+				       else    printf( " %-s\n",name);
 			       }
 				break;
 		case PARAM_L + PARAM_A : display_attribute(buf,name);
-					 printf( " %-s\n",name);
+				       if(flag_color == 1)
+				       {
+					       printf("\033[34m %s\033[0m\n", name);
+				       }
+				       else    printf( " %-s\n",name);
 					 break;
 		case PARAM_R : if(name[0] != '.')
 			       {
-					if(name[0] != '.') display_single(name); 
+					if(name[0] != '.') display_single(name,flag_color); 
 			       }
 			       break;
 		case PARAM_R + PARAM_A:if(name[0] != '.')
 			       {
-					if(name[0] != '.') display_single(name); 
+					if(name[0] != '.') display_single(name,flag_color); 
 			       }
 			       break;
 		case PARAM_R + PARAM_A + PARAM_L : display_attribute(buf,name);
-						   printf( " %-s\n",name);
+						       if(flag_color == 1)
+						       {
+						      	 printf("\033[34m %s\033[0m\n", name);
+						       }
+						       else    printf( " %-s\n",name);
 						   break;
 		case PARAM_R + PARAM_L : if(name[0] != '.')
 				       {
 					       display_attribute(buf,name);
-					       printf( " %-s\n",name);
+					       if(flag_color == 1)
+					       {
+					     	  printf("\033[34m %s\033[0m\n", name);
+					       }
+					       else    printf( " %-s\n",name);
 				       }
 					break;
 		default : break;
