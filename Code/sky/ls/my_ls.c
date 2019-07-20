@@ -30,7 +30,7 @@ typedef struct name_node
     struct name_node *next;
 }name_node_t;
 typedef name_node_t *name_list_t;
-void display_single(char *name);
+void display_single(char *namei,struct stat *buf);
 void AddToSortedList(name_list_t list,name_node_t *p)
 {
     name_node_t *cur;
@@ -118,7 +118,6 @@ void my_err(const char *err_string,int line)
 {
     fprintf(stderr,"line:%d",line);
     perror(err_string);
-    exit(1);
 }
 
 void display(int flag,char *pathname,name_list_t list)
@@ -147,11 +146,11 @@ void display(int flag,char *pathname,name_list_t list)
     {
         //没有参数
         case PARAM_NONE:
-            if(name[0] != '.') display_single(name);
+            if(name[0] != '.') display_single(name,&buf);
             break;
 
         case PARAM_A:
-            display_single(name);
+            display_single(name,&buf);
             break;
 
         case PARAM_L:
@@ -170,7 +169,7 @@ void display(int flag,char *pathname,name_list_t list)
             break;
         case PARAM_R:
             if(name[0] != '.') 
-                display_single(name);
+                display_single(name,&buf);
             if(S_ISDIR(buf.st_mode))
             {
                 //printf("yes\n");
@@ -183,7 +182,7 @@ void display(int flag,char *pathname,name_list_t list)
             break;
        case PARAM_R + PARAM_A:
             //if(name[0] != '.') 
-                display_single(name);
+                display_single(name,&buf);
             if(S_ISDIR(buf.st_mode) && name[0] != '.')
             {
                 //printf("yes\n");
@@ -212,10 +211,10 @@ void display(int flag,char *pathname,name_list_t list)
             }
             break;
         case PARAM_r:
-            if(name[0] != '.') display_single(name);
+            if(name[0] != '.') display_single(name,&buf);
             break;
         case PARAM_f:
-            if(name[0] != '.') display_single(name);
+            if(name[0] != '.') display_single(name,&buf);
             break;
 
 
@@ -225,7 +224,7 @@ void display(int flag,char *pathname,name_list_t list)
             break;
     }
 }
-void display_single(char *name)
+void display_single(char *name,struct stat *buf)
 {
     int i,len;
 
@@ -238,8 +237,10 @@ void display_single(char *name)
 
     len = strlen(name);
     len = g_maxlen - len;
+    if(S_ISDIR(buf->st_mode))
     printf("\033[41;36m%-s\033[0m",name);
-    
+    else
+    printf("%-s",name);
     for(i = 0;i<len;i++)    printf(" ");
     printf("  ");
     //2表示空两格
@@ -291,13 +292,14 @@ void display_dir(int flag_param,char *path)
            continue;
        }
        if(ptr == NULL) my_err("readdir",__LINE__);
-
+        else{
         name_node_t *node = (name_list_t)malloc(sizeof(name_node_t));
        strncpy(node->data.name,path,len);
        node->data.name[len] = '\0';
        strcat(node->data.name,ptr->d_name);
        node->data.name[len + (int)strlen(ptr->d_name)] = '\0';
        List_AddTail(cur_list,node);
+    }
    }
 
    //使用冒泡法对文件名进行排序
