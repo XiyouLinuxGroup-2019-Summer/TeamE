@@ -9,6 +9,7 @@
 #include <dirent.h>
 #include <pwd.h>
 #include <readline/readline.h>
+#include <readline/history.h>
 
 #define normal 0 //一般命令
 #define out_redirect 1 //输出重定向
@@ -41,10 +42,13 @@ int main()
         memset(buf,0,256);
         print_promopt();
         /* get_input(buf); */
-        char *a = readline(NULL);
-        strcpy(buf,a);
-        printf("buf = %s\n",buf);
+        char *tmp = readline("\033[1m\033[42;37m$\033[0m");
+        add_history(tmp);
+        strcpy(buf,tmp);
+        free(tmp);
+        /* printf("buf = %s\n",buf); */
         //若输入命令为exit或者logout则退出本程序
+        buf[(int)strlen(buf)] = '\n';
         if(!strcmp(buf,"exit\n") || !strcmp(buf,"logout\n"))    break;
         for(int i = 0;i<100;i++)
         {
@@ -72,30 +76,30 @@ void print_promopt()
     char hostname[64];
     puts("");
     gethostname(hostname,sizeof(hostname));
-    printf("\033[1m\033[44;33m%s@%s$ \033[0m",pwd->pw_name,hostname);
-    printf("\033[1m\033[42;37m%s$ \033[0m",getcwd(NULL,0));
+    printf("\033[1m\033[44;33m%s@%s\033[0m",pwd->pw_name,hostname);
+    printf("\033[1m\033[42;37m%s\033[0m",getcwd(NULL,0));
     /* printf("myshell$$ "); */
 }
 
-void get_input(char *buf)
-{
-    /* int len = 0; */
-    /* int ch; */
-    char *a;
-    a = readline(NULL);//readline为其动态分配内存
-    /* strcpy(buf,a); */
-    printf("%s\n",buf);
+/* void get_input(char *buf) */
+/* { */
+/*     /1* int len = 0; *1/ */
+/*     /1* int ch; *1/ */
+/*     char *a; */
+/*     a = readline(NULL);//readline为其动态分配内存 */
+/*     /1* strcpy(buf,a); *1/ */
+/*     printf("%s\n",buf); */
 
-    if(((int)strlen(buf)) >= 256)
-    {
-        printf("命令太长!\n");
-        exit(-1);//输入命令过长而退出程序?
-    }
-        /* printf("%s\n",buf); */
-        /* buf[len++] = '\n'; */
-        /* buf[len] = '\0'; */
+/*     if(((int)strlen(buf)) >= 256) */
+/*     { */
+/*         printf("命令太长!\n"); */
+/*         exit(-1);//输入命令过长而退出程序? */
+/*     } */
+/*         /1* printf("%s\n",buf); *1/ */
+/*         /1* buf[len++] = '\n'; *1/ */
+/*         /1* buf[len] = '\0'; *1/ */
 
-}
+/* } */
 
 //解析输入的命令
 //将结果存入arglist中
@@ -125,10 +129,10 @@ void explain_input(char *buf,int *argcount,char arglist[100][256])
             p = q;
         }
     }
-    for(int i = 0;i<*argcount;i++)
-    {
-        printf("解析命令　%s\n",arglist[i]);
-    }
+    /* for(int i = 0;i<*argcount;i++) */
+    /* { */
+    /*     printf("解析命令　%s\n",arglist[i]); */
+    /* } */
     return ;
 }
 void do_cmd(int argcount,char arglist[100][256])
@@ -211,7 +215,15 @@ void do_cmd(int argcount,char arglist[100][256])
             }
         }
     }
+    
+    if(!strcmp(arg[0],"cd"))//内置cd命令
+    {
+        /* printf("123\n"); */
+        chdir(arg[1]);
+        return ;
 
+        
+    }
     if(how == in_redirect)
     {
         for(i = 0;arg[i] != NULL ;i++)
@@ -339,8 +351,6 @@ void do_cmd(int argcount,char arglist[100][256])
 
                 default:
                     break;
-            
-
 
 
     if(background == 1)
