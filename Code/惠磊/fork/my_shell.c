@@ -18,7 +18,7 @@ void get_input(char *);   //得到输入的命令
 void explain_input(char *,int *,char a[ ][256]);  //对输入命令进行解析
 void do_cmd(int ,char a[ ][256]);  //执行命令
 int find_command(char *);    //查找命令中的可执行程序
-
+void my_dir();//cd 到家目录
 int main(int argc,char **argv)
 {
 	int i;
@@ -62,6 +62,34 @@ int main(int argc,char **argv)
 	exit(0);
 
 }
+void my_chdir()
+{
+	int i,flag = 0,j;
+	char name[30];
+	char pathname[100];
+	char pathnametemp[100];
+	int uid;
+	struct passwd *data;
+	//uid_t uid;
+	uid = getuid();  //获取uid 
+	data = getpwuid(uid);
+	getcwd(pathname,100);
+	//处理路径  
+	int len = strlen(pathname);
+	for(i = 0;i < len;i++)
+	{
+		if(pathname[i] == '/') flag++;
+		if(flag == 3)  break;
+	}
+	for(j = 0;j < i;j++)
+	{
+		pathnametemp[j] = pathname[j];
+	}
+	pathnametemp[j] = '\0';
+	chdir(pathnametemp);
+
+}
+
 //输出 命令提示符
 void print_prompt()
 {
@@ -174,12 +202,24 @@ void do_cmd(int argcount,char arglist[100][256])
 	char *argnext[argcount + 1];
 	char *file;  //保存文件名
 	pid_t pid;
+	int cdflag = 0;
 
 	//将命令取出 
 	for(i = 0;i < argcount;i++)   arg[i] = (char *)arglist[i];
 
 	arg[argcount] = NULL;
+	//cd   
+	if(strcmp(arg[0],"cd") == 0)
+	{
+		if((argcount == 1)  || strcmp(arg[1],"~") == 0)  my_chdir();
+		else chdir(arg[1]);    //更改当前工作目录
 
+		return ;
+	}
+	else 
+	{
+
+	}
 	//查看命令行是否有后台运行符
 	for(i = 0;i < argcount; i++)
 	{
