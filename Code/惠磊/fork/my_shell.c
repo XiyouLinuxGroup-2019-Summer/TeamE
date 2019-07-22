@@ -16,6 +16,8 @@
 #define out_redirect  1  //输出重定向
 #define in_redirect 2 //输入重定向
 #define have_pipe   3  //命令中有管道
+#define CLOSE "\001\033[0m\002"                 // 关闭所有属性
+
 
 void print_prompt();   //打印提示符  
 void get_input(char *);   //得到输入的命令
@@ -131,10 +133,6 @@ void print_prompt()
 	if(0 == uid)  printf( "\033[40;32m#\033[0m");
 	else printf( "\033[40;32m$\033[0m");
 
-
-
-
-
 }
 
 //获取用户输入  
@@ -143,8 +141,7 @@ void get_input(char *buf)
 	int len = 0;
 	int ch;
 
-	
-	char * str = readline(NULL);
+	char * str = readline(" "CLOSE);
 	add_history(str);
 	strcpy(buf,str);
 	buf[strlen(buf)] = '\n';
