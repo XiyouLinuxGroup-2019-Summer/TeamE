@@ -107,9 +107,9 @@ void print_prompt()
 	//uid_t uid;
 	uid = getuid();
 	data = getpwuid(uid);
-	printf("%s@",data->pw_name);
+	printf("\033[43;35m%s@\033[0m",data->pw_name);
 	gethostname(name,30);
-	printf( "%s:",name);
+	printf( "\033[43;35m%s:\033[0m",name);
 	getcwd(pathname,100);
 	//处理路径  
 	int len = strlen(pathname);
@@ -125,11 +125,11 @@ void print_prompt()
 	pathnametemp[len-i] = '\0';
 	strcpy(pathname,"~");
 	strcat(pathname,pathnametemp);
-	printf( "%s",pathname);
+	printf( "\033[35;43m%s\033[0m",pathname);
 
 	//打印用户提示符
-	if(0 == uid)  printf( "#");
-	else printf( "$");
+	if(0 == uid)  printf( "\033[40;32m#\033[0m");
+	else printf( "\033[40;32m$\033[0m");
 
 
 
