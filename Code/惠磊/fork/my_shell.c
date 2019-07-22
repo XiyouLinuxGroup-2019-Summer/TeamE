@@ -8,6 +8,8 @@
 #include<sys/stat.h>
 #include<dirent.h>
 #include<pwd.h>
+#include<readline/readline.h>
+
 #define normal  0 //一般命令
 #define out_redirect  1  //输出重定向
 #define in_redirect 2 //输入重定向
@@ -138,9 +140,18 @@ void get_input(char *buf)
 	int len = 0;
 	int ch;
 
+	
+	char * str = readline(NULL);
+	strcpy(buf,str);
+	buf[strlen(buf)] = '\n';
+
+
+	/*free(str);
 	ch = getchar();
 	while(len < 256 && ch != '\n')
 	{
+		//char * str = readline("");
+		//free(str);
 		buf[len++] = ch;
 		ch = getchar( );
 	}
@@ -154,6 +165,7 @@ void get_input(char *buf)
 	buf[len] = '\n';
 	len++;
 	buf[len] = '\0';
+	*/
 
 }
 
@@ -216,10 +228,7 @@ void do_cmd(int argcount,char arglist[100][256])
 
 		return ;
 	}
-	else 
-	{
 
-	}
 	//查看命令行是否有后台运行符
 	for(i = 0;i < argcount; i++)
 	{
