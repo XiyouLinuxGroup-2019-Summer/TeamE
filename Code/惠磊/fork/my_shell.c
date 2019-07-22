@@ -9,6 +9,8 @@
 #include<dirent.h>
 #include<pwd.h>
 #include<readline/readline.h>
+#include<readline/history.h>
+
 
 #define normal  0 //一般命令
 #define out_redirect  1  //输出重定向
@@ -23,6 +25,7 @@ int find_command(char *);    //查找命令中的可执行程序
 void my_dir();//cd 到家目录
 int main(int argc,char **argv)
 {
+	 signal(SIGINT, SIG_IGN);
 	int i;
 	int argcount = 0; //记录 命令的个数
 	char arglist[100][256];   //存储命令
@@ -142,6 +145,7 @@ void get_input(char *buf)
 
 	
 	char * str = readline(NULL);
+	add_history(str);
 	strcpy(buf,str);
 	buf[strlen(buf)] = '\n';
 
