@@ -153,10 +153,10 @@ void explain_input(char *buf,int *argcount,char arglist[100][256])
             p = q;
         }
     }
-    for(int i = 0;i<*argcount;i++)
-    {
-        printf("解析命令　%s\n",arglist[i]);
-    }
+    /* for(int i = 0;i<*argcount;i++) */
+    /* { */
+    /*     printf("解析命令　%s\n",arglist[i]); */
+    /* } */
     return ;
 }
 void do_cmd(int argcount,char arglist[100][256])
