@@ -10,17 +10,23 @@
 #include <pwd.h>
 #include <readline/readline.h>
 #include <readline/history.h>
-
+// ~ / - >> <<
+// 多管道
+// 环境变量
+// 颜色
 #define normal 0 //一般命令
 #define out_redirect 1 //输出重定向
 #define in_redirect 2  //输入重定向
 #define have_pipe   3  //命令中有管道
-
+#define out_redirect2 4 //追加输出从重新定向
+#define in_redirect2 5 //追加输入重新定向
 void print_promopt();
 void get_input(char *buf);
 void explain_input(char *buf,int *argcount,char arglist[100][256]);
 void do_cmd(int argcount,char arglist[100][256]);
 int find_command(char *command);
+
+char *history_path[2] = {NULL,NULL};
 int main()
 {
     int i;
@@ -45,8 +51,16 @@ int main()
         char *tmp = readline("\033[1m\033[42;37m$\033[0m");
         add_history(tmp);
         strcpy(buf,tmp);
+        if(strncmp(buf,"ls",2) == 0)
+        {
+            char tp[256];
+            strcpy(tp,&buf[2]);
+            strcat(buf," --color");
+            strcat(buf,tp);
+        }
         free(tmp);
-        /* printf("buf = %s\n",buf); */
+        if(buf[0] == 0) continue;
+        /* printf("buf = %d\n",buf[0]); */
         //若输入命令为exit或者logout则退出本程序
         buf[(int)strlen(buf)] = '\n';
         if(!strcmp(buf,"exit\n") || !strcmp(buf,"logout\n"))    break;
@@ -79,6 +93,16 @@ void print_promopt()
     printf("\033[1m\033[44;33m%s@%s\033[0m",pwd->pw_name,hostname);
     printf("\033[1m\033[42;37m%s\033[0m",getcwd(NULL,0));
     /* printf("myshell$$ "); */
+    if(history_path[0] == NULL && history_path[1] == NULL)
+    {
+        history_path[0] = getcwd(NULL,0);
+        history_path[1] = getcwd(NULL,0);
+    }
+    else
+    {
+        history_path[0] = history_path[1];
+       history_path[1] = getcwd(NULL,0);
+    }
 }
 
 /* void get_input(char *buf) */
@@ -129,10 +153,10 @@ void explain_input(char *buf,int *argcount,char arglist[100][256])
             p = q;
         }
     }
-    /* for(int i = 0;i<*argcount;i++) */
-    /* { */
-    /*     printf("解析命令　%s\n",arglist[i]); */
-    /* } */
+    for(int i = 0;i<*argcount;i++)
+    {
+        printf("解析命令　%s\n",arglist[i]);
+    }
     return ;
 }
 void do_cmd(int argcount,char arglist[100][256])
@@ -140,7 +164,7 @@ void do_cmd(int argcount,char arglist[100][256])
     int how = 0;//指示命令中是否含有< > |
     int background = 0;//表示命令中是否有后台运行表示符
     int status,i,fd,cnt = 0;
-    char *arg[argcount+1],*argnext[argcount+1],*file;
+    char *arg[argcount+2],*argnext[argcount+1],*file;
     pid_t pid;
 
     //将命令取出来
@@ -150,6 +174,7 @@ void do_cmd(int argcount,char arglist[100][256])
     }
     arg[argcount] = NULL;
 
+    
     //查看命令中是否有后台运行符号
     for(i = 0;i < argcount;i++)
     {
@@ -172,11 +197,23 @@ void do_cmd(int argcount,char arglist[100][256])
     //输入检测
     for(i = 0; arg[i] != NULL; i++)
     {
+        if(!strcmp(arg[i],">>"))
+        {
+            cnt++;
+            how = out_redirect2;
+            if(arg[i+1] == NULL || i == 0) cnt++;
+        }
         if(strcmp(arg[i],">") == 0)
         {//含有> i==0?没有处理?
             cnt++;
             how = out_redirect;
             if(arg[i+1] == NULL || i == 0) cnt++;//无输出文件名也不合法
+        }
+        if(!strcmp(arg[i],"<<"))
+        {
+            cnt++;
+            how = in_redirect2;
+            if(i == 0) cnt++;//不合法
         }
         if(strcmp(arg[i],"<") == 0)
         {//含有<
@@ -215,9 +252,33 @@ void do_cmd(int argcount,char arglist[100][256])
             }
         }
     }
+    if(how == out_redirect2)
+    {
+        for(i = 0;arg[i] != NULL ; i++)
+        {
+            if(strcmp(arg[i],">>") == 0)
+            {
+                file = arg[i+1];//file指向要输出的文件
+                /* printf("%s\n",file); */
+                arg[i] = NULL;//去掉>这个命令
+            }
+        }
+    }
+
     
     if(!strcmp(arg[0],"cd"))//内置cd命令
     {
+        char *home = getenv("HOME");
+        if(arg[1] != NULL && !strncmp(arg[1],"~",1))
+            strcpy(arg[1],home);
+        else if(arg[1] != NULL && !strncmp(arg[1],"-",1))
+            strcpy(arg[1],history_path[0]);
+        else if(argcount == 1)
+        {
+            arg[1] = (char*)malloc(256);
+            strcpy(arg[1],home);
+
+        } 
         /* printf("123\n"); */
         chdir(arg[1]);
         return ;
@@ -259,9 +320,13 @@ void do_cmd(int argcount,char arglist[100][256])
         printf("进程创建失败\n");
         return ;
     }
-    int temp;//父进程到此阻塞
-    if(pid != 0) wait(&temp);
-    switch(how)
+    /* int temp;//父进程到此阻塞 */
+    /* if(pid != 0) wait(&temp); */
+    if(pid != 0 && waitpid(pid,&status,0) == -1)
+    {
+            printf("父进程等待子进程出错\n");
+    }
+        switch(how)
     {
         case 0://normal命令
             if(!pid)//子进程中
@@ -348,22 +413,36 @@ void do_cmd(int argcount,char arglist[100][256])
                     printf("删除tempfile出错\n");
                 exit(0);
                 }}
+        case out_redirect2:
+            if(!pid)
+                if( !find_command(arg[0]) )
+                {
+                    printf("未找到该命令:%s\n",arg[0]);
+                    exit(0);
+                }
+                else
+                {
+                    fd = open(file,O_WRONLY | O_APPEND | O_CREAT,0644);//0644与umask做&运算后得到创建文件的权限
+                    dup2(fd,1); //复制一个文件描述符
+                    execvp(arg[0],arg);
+                    exit(0);
+                }
+            break;
 
-                default:
-                    break;
+        case in_redirect2:
+            break;
+        default:
+            break;
 
 
+                    /* printf("父进程等待子进程\n"); */
+    }
     if(background == 1)
     {//有后台运行符号父进程直接返回，不等待子进程
-        printf("[进程ID:%d]\n",pid);
+        printf("[后台进程%d完成]\n",pid);
         return ;
     }
-        if(waitpid(pid,&status,0) == -1)
-        {
-            printf("父进程等待子进程出错\n");
-        }
-        /* printf("父进程等待子进程\n"); */
-    }
+
 }
 int find_command(char *command)
 {
