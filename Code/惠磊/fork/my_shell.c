@@ -17,6 +17,8 @@
 #define in_redirect 2 //输入重定向
 #define have_pipe   3  //命令中有管道
 #define CLOSE "\001\033[0m\002"                 // 关闭所有属性
+char cd_pathnametemp[PATH_MAX] = "/home/tt";    //默认家目录
+char cd_pathname[PATH_MAX];
 
 
 void print_prompt();   //打印提示符  
@@ -70,7 +72,7 @@ int main(int argc,char **argv)
 }
 void my_chdir()
 {
-	int i,flag = 0,j;
+/*	int i,flag = 0,j;
 	char name[30];
 	char pathname[100];
 	char pathnametemp[100];
@@ -91,9 +93,12 @@ void my_chdir()
 	{
 		pathnametemp[j] = pathname[j];
 	}
-	pathnametemp[j] = '\0';
-	chdir(pathnametemp);
 
+	pathnametemp[j] = '\0';
+*/
+	//printf( "%s\n",pathnametemp);
+	//chdir(pathnametemp);
+	chdir("/home/tt");
 }
 
 //输出 命令提示符
@@ -105,6 +110,7 @@ void print_prompt()
 	char pathnametemp[100];
 	int uid;
 	struct passwd *data;
+
 	//uid_t uid;
 	uid = getuid();
 	data = getpwuid(uid);
@@ -112,6 +118,13 @@ void print_prompt()
 	gethostname(name,30);
 	printf( "\033[43;35m%s:\033[0m",name);
 	getcwd(pathname,100);
+	
+	if(pathname[1] != 'h' && pathname[2] != 'o')
+	{
+		printf( "\033[35;43m%s\033[0m",pathname);
+		return ;
+	}
+
 	//处理路径  
 	int len = strlen(pathname);
 	for(i = 0;i < len;i++)
@@ -131,7 +144,8 @@ void print_prompt()
 	//打印用户提示符
 	if(0 == uid)  printf( "\033[40;32m#\033[0m");
 	else printf( "\033[40;32m$\033[0m");
-
+	
+	return ;
 }
 
 //获取用户输入  
@@ -225,11 +239,29 @@ void do_cmd(int argcount,char arglist[100][256])
 		arg[argcount + 1] = NULL;
 	}
 	else 	arg[argcount] = NULL;
+
+
 	//cd   
 	if(strcmp(arg[0],"cd") == 0)
 	{
-		if((argcount == 1)  || strcmp(arg[1],"~") == 0)  my_chdir();
-		else chdir(arg[1]);    //更改当前工作目录
+		getcwd(cd_pathname,100);
+		if((argcount == 1)  || strcmp(arg[1],"~") == 0)  
+		{
+			strcpy(cd_pathnametemp,cd_pathname);
+			my_chdir();   //更改家目录
+		}
+		else if(strcmp(arg[1],"-") == 0)
+		{
+		//	strcpy(cd_pathnametemp,cd_pathname);
+			chdir(cd_pathnametemp);
+			strcpy(cd_pathnametemp,cd_pathname);
+		}
+		else
+		{
+			strcpy(cd_pathnametemp,cd_pathname);
+			chdir(arg[1]);    //更改当前工作目录
+		}
+
 
 		return ;
 	}
