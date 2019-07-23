@@ -47,10 +47,9 @@ int main(int argc,char **argv)
 		memset(buf,0,sizeof((buf)));
 		print_prompt();   //输出命令提示符
 		get_input(buf);   //获取输入
-
 		//若输入的命令为 exit 或 logout 则退出本程序
 		if(strcmp("exit\n",buf) == 0 || strcmp("logout\n",buf) == 0)  break;
-
+		if(strcmp(buf,"\n") == 0) continue;
 		//清空 arglist 
 		for(i = 0;i < 100;i++)    arglist[i][0] = '\0';
 		argcount = 0;//命令个数 清0
@@ -219,8 +218,13 @@ void do_cmd(int argcount,char arglist[100][256])
 
 	//将命令取出 
 	for(i = 0;i < argcount;i++)   arg[i] = (char *)arglist[i];
-
-	arg[argcount] = NULL;
+	//给ls 加颜色
+	if(strcmp(arg[0],"ls") == 0)
+	{
+		arg[argcount] = "--color=auto";
+		arg[argcount + 1] = NULL;
+	}
+	else 	arg[argcount] = NULL;
 	//cd   
 	if(strcmp(arg[0],"cd") == 0)
 	{
@@ -361,7 +365,7 @@ void do_cmd(int argcount,char arglist[100][256])
 					exit(0);
 				}
 				fd = open(file,O_RDWR | O_CREAT | O_TRUNC,0644);
-				dup2(fd,1);  //赋值 恩建描述符
+				dup2(fd,1);  //赋值 文件描述符描述符   将本来 的文件描述符 改为 1 标准输入
 				execvp(arg[0],arg);
 				exit(0);
 			}
