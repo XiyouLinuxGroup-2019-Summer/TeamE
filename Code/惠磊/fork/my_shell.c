@@ -16,6 +16,12 @@
 #define out_redirect  1  //输出重定向
 #define in_redirect 2 //输入重定向
 #define have_pipe   3  //命令中有管道
+#define add_out_redirect 4
+#define add_in_redirect 5
+#define CLOSE "\001\033[0m\002"                 // 关闭所有属性
+char cd_pathnametemp[PATH_MAX] = "/home/tt";    //默认家目录
+char cd_pathname[PATH_MAX];
+
 
 void print_prompt();   //打印提示符  
 void get_input(char *);   //得到输入的命令
@@ -45,10 +51,9 @@ int main(int argc,char **argv)
 		memset(buf,0,sizeof((buf)));
 		print_prompt();   //输出命令提示符
 		get_input(buf);   //获取输入
-
 		//若输入的命令为 exit 或 logout 则退出本程序
 		if(strcmp("exit\n",buf) == 0 || strcmp("logout\n",buf) == 0)  break;
-
+		if(strcmp(buf,"\n") == 0) continue;
 		//清空 arglist 
 		for(i = 0;i < 100;i++)    arglist[i][0] = '\0';
 		argcount = 0;//命令个数 清0
@@ -69,7 +74,7 @@ int main(int argc,char **argv)
 }
 void my_chdir()
 {
-	int i,flag = 0,j;
+/*	int i,flag = 0,j;
 	char name[30];
 	char pathname[100];
 	char pathnametemp[100];
@@ -90,9 +95,12 @@ void my_chdir()
 	{
 		pathnametemp[j] = pathname[j];
 	}
-	pathnametemp[j] = '\0';
-	chdir(pathnametemp);
 
+	pathnametemp[j] = '\0';
+*/
+	//printf( "%s\n",pathnametemp);
+	//chdir(pathnametemp);
+	chdir("/home/tt");
 }
 
 //输出 命令提示符
@@ -104,13 +112,21 @@ void print_prompt()
 	char pathnametemp[100];
 	int uid;
 	struct passwd *data;
+
 	//uid_t uid;
 	uid = getuid();
 	data = getpwuid(uid);
-	printf("%s@",data->pw_name);
+	printf("\033[43;35m%s@\033[0m",data->pw_name);
 	gethostname(name,30);
-	printf( "%s:",name);
+	printf( "\033[43;35m%s:\033[0m",name);
 	getcwd(pathname,100);
+	
+	if(pathname[1] != 'h' && pathname[2] != 'o')
+	{
+		printf( "\033[35;43m%s\033[0m",pathname);
+		return ;
+	}
+
 	//处理路径  
 	int len = strlen(pathname);
 	for(i = 0;i < len;i++)
@@ -125,16 +141,13 @@ void print_prompt()
 	pathnametemp[len-i] = '\0';
 	strcpy(pathname,"~");
 	strcat(pathname,pathnametemp);
-	printf( "%s",pathname);
+	printf( "\033[35;43m%s\033[0m",pathname);
 
 	//打印用户提示符
-	if(0 == uid)  printf( "#");
-	else printf( "$");
-
-
-
-
-
+	if(0 == uid)  printf( "\033[40;32m#\033[0m");
+	else printf( "\033[40;32m$\033[0m");
+	
+	return ;
 }
 
 //获取用户输入  
@@ -143,8 +156,7 @@ void get_input(char *buf)
 	int len = 0;
 	int ch;
 
-	
-	char * str = readline(NULL);
+	char * str = readline(" "CLOSE);
 	add_history(str);
 	strcpy(buf,str);
 	buf[strlen(buf)] = '\n';
@@ -222,13 +234,36 @@ void do_cmd(int argcount,char arglist[100][256])
 
 	//将命令取出 
 	for(i = 0;i < argcount;i++)   arg[i] = (char *)arglist[i];
+	//给ls 加颜色
+	if(strcmp(arg[0],"ls") == 0)
+	{
+		arg[argcount] = "--color=auto";
+		arg[argcount + 1] = NULL;
+	}
+	else 	arg[argcount] = NULL;
 
-	arg[argcount] = NULL;
+
 	//cd   
 	if(strcmp(arg[0],"cd") == 0)
 	{
-		if((argcount == 1)  || strcmp(arg[1],"~") == 0)  my_chdir();
-		else chdir(arg[1]);    //更改当前工作目录
+		getcwd(cd_pathname,100);
+		if((argcount == 1)  || strcmp(arg[1],"~") == 0)  
+		{
+			strcpy(cd_pathnametemp,cd_pathname);
+			my_chdir();   //更改家目录
+		}
+		else if(strcmp(arg[1],"-") == 0)
+		{
+		//	strcpy(cd_pathnametemp,cd_pathname);
+			chdir(cd_pathnametemp);
+			strcpy(cd_pathnametemp,cd_pathname);
+		}
+		else
+		{
+			strcpy(cd_pathnametemp,cd_pathname);
+			chdir(arg[1]);    //更改当前工作目录
+		}
+
 
 		return ;
 	}
@@ -274,6 +309,18 @@ void do_cmd(int argcount,char arglist[100][256])
 			if(arg[i+1] == NULL) flag++;
 			if(i == 0)  flag++;
 		}
+		if(strcmp(arg[i],">>") == 0)
+		{
+			flag++;
+			how = add_out_redirect;
+			if(arg[i+1] == NULL)  flag++;
+		}
+		if(strcmp(arg[i],"<<") == 0)
+		{
+			flag++;
+			how = add_in_redirect;
+			if(i == 0) flag++;
+		}
 
 	}
 	//若 flag == 1, 则有
@@ -284,7 +331,7 @@ void do_cmd(int argcount,char arglist[100][256])
 		return ;
 	}
 
-	//命令中 只含一个输出中定向符号
+	//命令中 只含一个输出替换重定向符号
 	if(how == out_redirect)
 	{
 		for(i = 0;arg[i] != NULL;i++)
@@ -297,7 +344,7 @@ void do_cmd(int argcount,char arglist[100][256])
 		}
 	}
 
-	//命令中只含有 一个输入重定向	
+	//命令中只含有 一个输入替换重定向	
 	if(how == in_redirect)
 	{
 		for(i = 0;arg[i] != NULL;i++)
@@ -309,7 +356,32 @@ void do_cmd(int argcount,char arglist[100][256])
 			}
 		}
 	}
+	//命令中只含有 输出追加重定向
+	if(how == add_out_redirect)
+	{
+		for(i = 0;arg[i] != NULL;i++)
+		{
+			if(strcmp(arg[i],">>") == 0)
+			{
+				file = arg[i+1];
+				arg[i] = NULL;
+				arg[i] = NULL;
+			}
+		}
+	}
 
+	//命令中只含有 输入追加重定向
+	if(how == add_in_redirect)
+	{
+		for(i = 0;arg[i] != NULL;i++)
+		{
+			if(strcmp(arg[i],"<<") == 0)
+			{
+				file = arg[i+1];
+				arg[i] = NULL;
+			}
+		}
+	}
 	//命令中只含有 一管道符号
 	//把管道符号后面的部分存入argnext中,管道后面的部分是一个可执行 的shell 命令
 	if(how == have_pipe)
@@ -355,7 +427,7 @@ void do_cmd(int argcount,char arglist[100][256])
 				exit(0);
 			}
 			break;
-		case 1:  //输出重定向
+		case 1:  //替换输出重定向
 			if(pid == 0)
 			{
 				if(!(find_command(arg[0])))
@@ -363,13 +435,13 @@ void do_cmd(int argcount,char arglist[100][256])
 					printf( "%s : command not found\n",arg[0]);
 					exit(0);
 				}
-				fd = open(file,O_RDWR | O_CREAT | O_TRUNC,0644);
-				dup2(fd,1);  //赋值 恩建描述符
+				fd = open(file,O_RDWR | O_CREAT | O_TRUNC,0644);  //可读可写 ,若文件不存在就自动建立该文件  ,将文件长度清 0
+				dup2(fd,1);  //赋值 文件描述符描述符   将本来 的文件描述符 改为 1 标准输入
 				execvp(arg[0],arg);
 				exit(0);
 			}
 			break;
-		case 2:  //输入重定向
+		case 2:  //替换输入重定向
 			if(pid == 0)
 			{
 				if(!(find_command(arg[0])))
@@ -425,7 +497,20 @@ void do_cmd(int argcount,char arglist[100][256])
 
 			}
 			break;
+		case 4://追加输出重定向
+			if(pid == 0)
+			{
+				if(!(find_command(arg[0])))
+				{
+					printf( "%s : command not found\n",arg[0]);
+					exit(0);
+				}
 
+				fd = open(file,O_RDWR | O_CREAT | O_APPEND);
+				dup2(fd,1);
+				execvp(arg[0],arg);
+				exit(0);
+			} break;
 		default : break;
 	}
 
