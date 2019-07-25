@@ -12,7 +12,7 @@ void *thread1(void *arg)
     while(1)
     {
         printf("线程1正在运行\n");
-        pthread_mutex_lock(&mutex);
+        pthread_mutex_lock(&mutex);//互斥锁保证了只有一个线程基于条件变量阻塞
         pthread_cond_wait(&cond,&mutex);
         printf("线程1申请了这个条件变量\n");
         pthread_mutex_unlock(&mutex);
@@ -53,4 +53,3 @@ int main()
     pthread_exit(0);
     return 0;
 }
-
