@@ -11,12 +11,12 @@ void *thread1(void *arg)
 
     while(1)
     {
-        printf("线程1正在运行\n");
         pthread_mutex_lock(&mutex);//互斥锁保证了只有一个线程基于条件变量阻塞
+        printf("thread1 is running!\n");
         pthread_cond_wait(&cond,&mutex);
-        printf("线程1申请了这个条件变量\n");
+        printf("thread1 applied the condition\n");
         pthread_mutex_unlock(&mutex);
-        sleep(4);
+        sleep(1);
     }
     pthread_cleanup_pop(0);
 }
@@ -25,10 +25,10 @@ void *thread2(void *arg)
 {
     while(1)
     {
-        printf("线程2正在运行\n");
         pthread_mutex_lock(&mutex);
+        printf("thread2 is running\n");
         pthread_cond_wait(&cond,&mutex);
-        printf("线程2申请了这个条件变量\n");
+        printf("thread2 applied the condition\n");
         pthread_mutex_unlock(&mutex);
         sleep(1);
     }
@@ -47,6 +47,7 @@ int main()
 
     do{
         pthread_cond_signal(&cond);
+        sleep(1);
     }while(1);
 
     sleep(50);
