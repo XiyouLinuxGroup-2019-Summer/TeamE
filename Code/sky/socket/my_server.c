@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include "my_recv.h"
 
-#define SERV_PORT 4570 //服务器端的地址
+#define SERV_PORT 4507 //服务器端的地址
 #define LISTENQ 12     //链接请求队列的最大长度
 
 #define INVALID_USERINFO //用户信息无效
@@ -52,6 +52,7 @@ int find_name(const char *name)
 
 void send_data(int conn_fd,const char *string)
 {
+    printf("senddata: %s\n",string);
     if(send(conn_fd,string,strlen(string),0) < 0)
         my_err("send",__LINE__);
 
@@ -107,6 +108,8 @@ int main()
         //创建一个子进程处理刚刚接受到的连接请求
         if((pid = fork()) == 0)
         {//子进程
+            while(1)
+            {
             if((ret = recv(conn_fd,recv_buf,sizeof(recv_buf),0)) < 0)
             //(客户端套接字，缓冲区，长度，控制选项)
             {
@@ -115,9 +118,12 @@ int main()
             }
             recv_buf[ret-1] = '\0';
             
+            printf("现在的类型:%d\n",flag_recv);
+            /* printf("接收到的数据是:%s\n",recv_buf); */
             if(flag_recv == USERNAME)
             {//接受到的是用户名
                 name_num =  find_name(recv_buf);
+                printf("name_num = %d\n",name_num);
                 switch(name_num)
                 {
                     case -1://
@@ -132,9 +138,31 @@ int main()
                         break;
 
                 }
+            }
+            else if(flag_recv == PASSWD)
+            {//接收到的是密码
+                if(strcmp(user[name_num].passwd,recv_buf) == 0)
+                {
+                    send_data(conn_fd,"y\n");
+                    send_data(conn_fd,"欢迎登录TCP Server\n");
+                    printf("%s登录成功",user[name_num].username);
+                    break;
+                }
+                else send_data(conn_fd,"n\n");
 
             }
+            close(sock_fd);
+            close(conn_fd);
+            exit(0);
+            
         }
+        }
+        else
+        {//父进程关闭接收到的请求，执行accpet等待连接请求
+            close(conn_fd);
+        }
+    
+    
     }
     return 0;
 }
