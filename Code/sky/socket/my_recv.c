@@ -26,12 +26,15 @@ int my_recv(int conn_fd,char *data_buf,int len)
     int i ; 
 
     //如果缓冲区中没有数据，则从套接字中读取数据
-    if(len_remain >= 0)
+    if(len_remain <= 0)
     {
         if((len_remain = recv(conn_fd,recv_buf,sizeof(recv_buf),0)) < 0)
             my_err("recv",__LINE__);
         else if(len_remain == 0)//目的计算机的socket 连接关闭
+        {
+            printf("读取失败\n");
             return 0;
+        }
 
         pread = recv_buf; //重新初始化pread指针
     }
@@ -45,6 +48,7 @@ int my_recv(int conn_fd,char *data_buf,int len)
         data_buf[i] = *pread++;
         len_remain--;
     }
+    printf("接收到的数据是:%s\n",data_buf);
 
     //去除标志
     len_remain--;
