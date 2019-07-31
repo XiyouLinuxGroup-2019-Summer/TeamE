@@ -67,7 +67,19 @@ void handle_accept(int epollfd,int listenfd)
         
         //添加一个客户端描述符事件
         add_event(epollfd,clifd,EPOLLIN);//后面这个客户端套接字有事件发生时会在handle_events根据类型处理这个事件
+        int pid; 
+        if((pid = fork()) == 0)
+        {
+            while(1)
+            {
+            char buf2[256];
+            scanf("%s",buf2);
+            printf("%s\n",buf2);
+            write(clifd,buf2,strlen(buf2));
+            
+        }
     }
+}
 }
 
 //修改事件
@@ -109,7 +121,7 @@ void do_read(int epollfd,int fd,char *buf)//fd表示待处理事件的描述符
     else
     {
         printf("接收到的消息是:%s",buf);
-        write(fd,"Hello",5);
+        /* write(fd,"Hello",5); */
         //修改描述符对应事件由读改为写
         modify_event(epollfd,fd,EPOLLOUT);//修改标识符，等待下一个循环时发送数据，异步处理的精髓
     }

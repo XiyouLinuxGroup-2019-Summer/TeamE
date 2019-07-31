@@ -48,7 +48,7 @@ int my_recv(int conn_fd,char *data_buf,int len)
         data_buf[i] = *pread++;
         len_remain--;
     }
-    printf("接收到的数据是:%s\n",data_buf);
+    /* printf("接收到的数据是:%s\n",data_buf); */
 
     //去除标志
     len_remain--;

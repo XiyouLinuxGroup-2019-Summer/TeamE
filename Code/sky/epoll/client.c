@@ -88,13 +88,11 @@ void do_read(int epollfd,int fd,int sockfd,char *buf)//fd表示待处理事件�
     }
     else
     {
-        if(fd == STDIN_FILENO)
-            add_event(epollfd,sockfd,EPOLLOUT);
-        else
-        {
-            delete_event(epollfd,sockfd,EPOLLIN);
-            add_event(epollfd,STDOUT_FILENO,EPOLLOUT);
-        }
+        printf("接收到的消息是:%s",buf);
+        /* write(fd,"Hello",5); */
+        //修改描述符对应事件由读改为写
+        modify_event(epollfd,fd,EPOLLOUT);//修改标识符，等待下一个循环时发送数据，异步处理的精髓
+
     }
     return ;
 }
@@ -129,6 +127,7 @@ void handle_events(int epollfd,struct epoll_event *events,int num,int listenfd,c
     //遍历需要处理的事件
     for(int i = 0;i<num;i++)
     {
+        /* printf("fd = %d\n",fd); */
         fd = events[i].data.fd;//根据事件的属性处理事件
 
         //根据文件描述符类型和事件类型进行处理
@@ -142,12 +141,13 @@ void handle_events(int epollfd,struct epoll_event *events,int num,int listenfd,c
 //处理连接
 void handle_connection(int sockfd)
 {
+    
     int epollfd;
     struct epoll_event events[EPOLLEVENTS];
     char buf[MAXSIZE];
     int ret;
     epollfd = epoll_create(FDSIZE);
-    add_event(epollfd,STDIN_FILENO,EPOLLIN);
+    add_event(epollfd,sockfd,EPOLLIN);
     while(1)
     {
         ret = epoll_wait(epollfd,events,EPOLLEVENTS,-1);
@@ -158,7 +158,6 @@ void handle_connection(int sockfd)
 
 int main(int argc,char **argv)
 {
-
     int sockfd = socket_connect(IPADDRESS,PORT);
     handle_connection(sockfd);//处理连接
     return 0;

@@ -47,7 +47,7 @@ void input_userinfo(int conn_fd,const char* string)
             exit(1);
         }
 
-        printf("输入的账户为:%s\n",input_buf);
+        /* printf("输入的账户为:%s\n",input_buf); */
         if(send(conn_fd,input_buf,strlen(input_buf),0) < 0)
         {
             my_err("send",__LINE__);
@@ -60,7 +60,7 @@ void input_userinfo(int conn_fd,const char* string)
             exit(1);
         }
 
-        printf("recvdaia : %s\n",recv_buf);
+        /* printf("recvdaia : %s\n",recv_buf); */
         if(recv_buf[0] == VALID_USERINFO) flag_userinfo = VALID_USERINFO;
         else
         {
@@ -135,8 +135,8 @@ int main(int argc,char **argv)
     }
 
     //输入用户名和密码
-    input_userinfo(conn_fd,"username");
-    input_userinfo(conn_fd,"password");
+    input_userinfo(conn_fd,"用户名:");
+    input_userinfo(conn_fd,"密码:");
     
     //读取欢迎信息并打印出来
     if((ret = my_recv(conn_fd,recv_buf,sizeof(recv_buf))) < 0)
