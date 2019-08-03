@@ -11,7 +11,7 @@ int main()
         fprintf(stderr,"%s\n",mysql_error(con));
     }
 
-    if(mysql_real_connect(con,"localhost","user123","123456","mydb",0,NULL,0) == NULL){
+    if(mysql_real_connect(con,"localhost","user123","123456","mydb",123,NULL,0) == NULL){
         printf("error:%d\n",__LINE__);
     }
 
