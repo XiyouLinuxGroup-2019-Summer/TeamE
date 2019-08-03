@@ -1,0 +1,76 @@
+pool
+{
+	pthread_mutex_t lock;
+	pthread_cond_t cond;
+	work *head;   //工作链表
+	shut;
+	pthread_t *threadid;
+	max_thread_num;
+	queue_size;
+
+}threadpool;
+work
+{
+	工作函数
+	参数
+};
+int init(int max)
+{
+	pool = (threadpool*)malloc(sizeof(threadpool));
+
+	pthread_mutex_init(pool->lock);
+	pthread_cond_init(pool->cond);
+	pool->max_thread_num = max;
+	pool->size = 0;
+	pool->shut = 0;
+	循环创建max 个线程, 并让这些线程执行 run() 函数
+}
+
+int add_event()
+{
+	创建一个工作结构体
+	将 工作函数和参数 加入结构体重
+
+	加锁
+	加信号
+
+	将当前工作结构体 添加到 head 的最尾部
+	pool->size++
+	解锁
+
+	发送换醒信号
+}
+
+run
+{
+	while(1)
+	{
+		加锁
+		whiel(pool->size ==0  ,pool->shut == 0)
+		{
+			pthread_cond_wait()
+		}
+
+		pool->size--;
+
+		head = head->next;
+		解锁
+
+		执行工作
+
+	}
+
+
+}
+
+destory
+{
+	唤醒所有线程
+	释放  head链表
+	释放线程链表
+	释放互斥锁
+	释放条件变量
+
+	释放 pool
+}
+
