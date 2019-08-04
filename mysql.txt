@@ -1,0 +1,17 @@
+# 数据库服务启动 关闭 重启
+service mysql start/stop/restart
+# 数据库登录(通过密码登录)
+mysql -u [username] -p
+
+# 查看数据库存储引擎
+show engines;
+# 显示所有数据库
+show databases;
+# 选择需要使用的数据库
+use db_name;
+# 显示数据所有的表
+show tables;
+# 显示列属性
+show columns from db_table;
+
+
