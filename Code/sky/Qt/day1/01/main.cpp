@@ -1,8 +1,6 @@
 #include "mywidget.h"
-
-//QApplication
 #include <QApplication>
-
+阿道夫阿斯蒂芬
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
