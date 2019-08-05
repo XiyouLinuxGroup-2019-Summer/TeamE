@@ -10,33 +10,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
+
 
 #define LISTENQ 12                    //连接请求队列的最大长度
-#define SERV_ADDRESS  "127.0.0.1"
+#define CLI_ADDRESS  "127.0.0.1"
 #define EPOLL_SIZE    5000
-#define SERV_PORT    4507    
+#define CLI_PORT    4507
 #define EPOLLEVENTS 100
 #define MAXSIZE     1024
 #define FDSIZE      1000
-#define REGISTER 1
-#define LOGIN        2
-
-//消息结构体
-typedef struct message
-{
-    int flag;
-    char mg[256];
-}message;
-
-//账户信息结构体
-typedef struct  account
-{
-    int flag;
-    char  username[30];
-    char passwd[30];
-}account;
-int listenfd;
 
 //自定义错误处理函数
 void my_err(const char *s,int line)
@@ -76,41 +58,25 @@ void add_event(int epollfd,int fd,int state)
     epoll_ctl(epollfd,EPOLL_CTL_ADD,fd,&ev);//事件注册函数
     return ;
 }
-void Print_welcome(char *buf)
-{
-    message msg;
-    memcpy(&msg,buf,sizeof(msg));
-    printf("******%s******\n",msg.mg);
-}
 
 //处理读请求的事件
 void do_read(int epollfd,int fd,int sockfd,char *buf)//fd表示待处理事件的描述符
 {
     printf("处理读事件\n");
-    int ret;
-    ret = recv(fd,buf,MAXSIZE,0);
-    if(ret == -1){
+    int nread;
+    nread = recv(fd,buf,MAXSIZE,0);
+    if(nread == -1){
         my_err("读事件处理错误",__LINE__);
         close(fd);
     }
-    else if(ret == 0){
+    else if(nread == 0){
         fprintf(stderr,"服务器关闭\n");
         close(fd);
-        exit(1);
+    }
+    else{
+        printf("接收到的消息是:%s\n",buf);
     }
 
-    int choice;
-    memcpy(&choice,buf,4);
-    printf("choice = %d\n",choice);
-    switch(choice)
-    {
-        case -1:
-            Print_welcome(buf);
-    }
-    
-    
-
-    memset(buf,0,MAXSIZE);
     return ;
 }
 
@@ -129,62 +95,16 @@ void do_write(int epollfd,int fd,int sockfd,char *buf)
     }
     memset(buf,0,MAXSIZE);
 }
-void  Account_register()
-{
-    char str[MAXSIZE];
-    account reg;
-    memset(str,0,sizeof(str));
-    printf("账号:");
-    scanf("%s",reg.username);
-    printf("密码:");
-    scanf("%s",reg.passwd);
-    reg.flag = REGISTER;
-    memcpy(str,&reg,sizeof(account));
-    if(send(listenfd,str,MAXSIZE,0) == -1){
-        my_err("注册账户时发送出错",__LINE__);
-    }
-    else printf("注册账号成功\n");
-    account tmp;
-    memcpy(&tmp,str,MAXSIZE);
-    printf("标志是%d\n",tmp.flag);
-    printf("账号是%s\n",tmp.username);
-    printf("密码是%s\n",tmp.passwd);
-    return ;
-    
-}
-void Main_menu()
-{
-    int choice = -1;
-    while(choice){
-        puts("[1]注册     [2]登录         [0]退出");
-        scanf("%d",&choice);
-        switch(choice)
-        {
-            case 1:
-                puts("注册");
-                Account_register();
-                break;
-            case 2:
-                puts("登录");
-                break;
-            case 3:
-                break;
-        }
-    }
-    
-    return ;
-}
 
-void *do_epoll(void *arg)
+int main()
 {
+    int listenfd = socket_connect(CLI_ADDRESS,CLI_PORT);
     int epfd;
     struct epoll_event events[EPOLLEVENTS];
     char buf[MAXSIZE];
     int ret;
-    
     epfd = epoll_create(FDSIZE);
     add_event(epfd,listenfd,EPOLLIN);
-
     //获取已经准备好的描述符事件,主循环
     while(1) {
         int epoll_event_count = epoll_wait(epfd,events,EPOLLEVENTS,-1);//等待事件发生,ret表示需要处理的事件数目
@@ -193,31 +113,13 @@ void *do_epoll(void *arg)
 
                 int fd = events[i].data.fd;//根据事件类型做相应的处理
 
-                //只处理读写事件
+                //处理读写事件
                 if(events[i].events & EPOLLIN)
                     do_read(epfd,fd,listenfd,buf);
+                else if(events[i].events & EPOLLOUT)
+                    do_write(epfd,fd,listenfd,buf);
              }
     }
     close(epfd);
-    return NULL;
-}
-int main()
-{
-    setbuf(stdin,NULL);
-    pthread_t thid;
-    char buf[MAXSIZE];
-     listenfd = socket_connect(SERV_ADDRESS,SERV_PORT);
-
-
-    //创建子线程专门接受消息
-    if(pthread_create(&thid,NULL,do_epoll,NULL) != 0){
-        my_err("创建线程失败",__LINE__);
-    }
-
-    //主线程进入菜单
-    Main_menu();
-
-    
-    
 
 }
