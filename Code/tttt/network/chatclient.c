@@ -14,7 +14,7 @@
 
 #define BUFFSIZE 1024
 #define MAXSIZE 1024
-#define IPADDRESS "127.0.0.1"
+#define IPADDRESS "192.168.3.206"
 #define SERV_PORT 4507
 #define FDSIZE 1024
 #define SIZE 30

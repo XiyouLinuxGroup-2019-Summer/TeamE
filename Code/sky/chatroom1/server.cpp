@@ -10,7 +10,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include <my_global.h>
+#include <mysql.h>
 
 #define LISTENQ 12                    //连接请求队列的最大长度
 #define SERV_ADDRESS  "127.0.0.1"
@@ -22,6 +23,7 @@
 #define REGISTER 1
 #define LOGIN        2
 
+MYSQL *con = mysql_init(NULL);
 //消息结构体
 typedef struct message
 {
@@ -33,8 +35,9 @@ typedef struct message
 typedef struct  account
 {
     int flag;
-    char  username[30];
+    int  username;
     char passwd[30];
+    char nickname[30];
 }account;
 
 //自定义错误处理函数
@@ -68,7 +71,22 @@ int socket_bind(char *ip,int port)
         my_err("套接字绑定端口失败",__LINE__);
     return listenfd;
 }
+void finish_with_error(MYSQL *con)
+{
+    fprintf(stderr,"%s\n",mysql_error(con));
+    mysql_close(con);
+    return ;
+}
 
+void Connect_Database(MYSQL *con)
+{
+    if(con == NULL) 
+        finish_with_error(con);   
+    if(mysql_real_connect(con,"localhost","root","2422503084.","chatroom",0,NULL,0) == NULL) 
+        finish_with_error(con);
+    else printf("成功连接到数据库\n");
+    return ;
+}
 //添加事件,将监听套接字加入epoll事件
 void add_event(int epollfd,int fd,int state)
 {
@@ -102,11 +120,27 @@ void handle_accept(int epollfd,int listenfd)
         add_event(epollfd,clifd,EPOLLIN);//后面这个客户端套接字有事件发生时会在handle_events根据类型处理这个事件
 
         message msg;
-        msg.flag = -1;//1表示欢迎信息
+        msg.flag = 0;//0表示立刻发送
         strcpy(msg.mg,"Welcome");
         char buf[MAXSIZE];
         memcpy(buf,&msg,sizeof(msg));
         if(send(clifd, buf, MAXSIZE, 0) < 0)//clientfd表示新连接客户端
+             my_err("发送消息失败",__LINE__);
+        else printf("发送消息成功\n");
+
+         if(send(clifd, buf, MAXSIZE, 0) < 0)//clientfd表示新连接客户端
+             my_err("发送消息失败",__LINE__);
+        else printf("发送消息成功\n");
+
+         if(send(clifd, buf, MAXSIZE, 0) < 0)//clientfd表示新连接客户端
+             my_err("发送消息失败",__LINE__);
+        else printf("发送消息成功\n");
+
+         if(send(clifd, buf, MAXSIZE, 0) < 0)//clientfd表示新连接客户端
+             my_err("发送消息失败",__LINE__);
+        else printf("发送消息成功\n");
+
+         if(send(clifd, buf, MAXSIZE, 0) < 0)//clientfd表示新连接客户端
              my_err("发送消息失败",__LINE__);
         else printf("发送消息成功\n");
         
@@ -114,17 +148,52 @@ void handle_accept(int epollfd,int listenfd)
     
     return ;
 }
-int Account_exist()
-{
-    return 1;
-}
-void Acount_register(char *buf)
+
+//返回注册的账号失败返回-1
+int Account_register_persist(char *buf)
 {
     account reg;
     memcpy(&reg,buf,sizeof(reg));
-    printf("标志是%d\n",reg.flag);
-    printf("账号是%s\n",reg.username);
-    printf("密码是%s\n",reg.passwd);
+    char insert[MAXSIZE];
+    sprintf(insert,"insert into Account (passwd,nickname) values('%s','%s')",reg.passwd,reg.nickname);
+    if(mysql_real_query(con,insert,strlen(insert))){
+        finish_with_error(con);
+    }else printf("新账号成功写入数据库\n");
+
+    //再从数据库中获取插入的主键值
+    if(mysql_query(con,"select LAST_INSERT_ID()")){
+        finish_with_error(con);
+    }
+    MYSQL_RES *res  = mysql_store_result(con);
+    MYSQL_ROW  row = mysql_fetch_row(res);
+    // printf("res = %d\n",atoi(row[0]));
+    // printf("标志是%d\n",reg.flag);
+    // printf("昵称是%s\n",reg.nickname);
+    // printf("密码是%s\n",reg.passwd);
+    return atoi(row[0]);
+}
+
+void Acount_register(int fd,char *buf)
+{
+    char s[MAXSIZE];
+    int ret = Account_register_persist(buf);
+    if(ret < 0){
+        my_err("注册账号失败",__LINE__);
+    }
+    else{
+        printf("新账号[%d]注册成功\n",ret);
+    }
+    
+    message msg;
+    msg.flag = 0;
+    sprintf(msg.mg,"新账号[%d]注册成功",ret);
+    memcpy(s,&msg,sizeof(msg));
+    int nwrite = send(fd,s,MAXSIZE,0);
+    if(nwrite == -1){
+        my_err("发送失败",__LINE__);
+        close(fd);
+    }
+    
 }
 //处理读请求的事件
 void do_read(int epollfd,int fd,int sockfd,char *buf)//fd表示待处理事件的描述符
@@ -149,7 +218,7 @@ void do_read(int epollfd,int fd,int sockfd,char *buf)//fd表示待处理事件�
     switch(choice)
     {
         case 1:
-            Acount_register(buf);
+            Acount_register(fd,buf);
             break;
     }
     
@@ -180,7 +249,7 @@ void do_write(int epollfd,int fd,int sockfd,char *buf)
 
 int main()
 {
-    
+    Connect_Database(con);
     int listenfd = socket_bind(SERV_ADDRESS,SERV_PORT);//listenfd表示创建的套接字文件描述符
     if(listen(listenfd,LISTENQ) < 0)//将套接字转化为监听套接字
         my_err("监听失败\n",__LINE__);

@@ -22,6 +22,7 @@
 #define REGISTER 1
 #define LOGIN        2
 
+int listenfd;
 //消息结构体
 typedef struct message
 {
@@ -33,10 +34,12 @@ typedef struct message
 typedef struct  account
 {
     int flag;
-    char  username[30];
+    int  username;
     char passwd[30];
+    char nickname[30];
 }account;
-int listenfd;
+
+
 
 //自定义错误处理函数
 void my_err(const char *s,int line)
@@ -104,7 +107,7 @@ void do_read(int epollfd,int fd,int sockfd,char *buf)//fd表示待处理事件�
     printf("choice = %d\n",choice);
     switch(choice)
     {
-        case -1:
+        case 0:
             Print_welcome(buf);
     }
     
@@ -131,24 +134,36 @@ void do_write(int epollfd,int fd,int sockfd,char *buf)
 }
 void  Account_register()
 {
+    char second[30];
     char str[MAXSIZE];
     account reg;
     memset(str,0,sizeof(str));
-    printf("账号:");
-    scanf("%s",reg.username);
-    printf("密码:");
-    scanf("%s",reg.passwd);
+    printf("昵称:");
+    scanf("%s",reg.nickname);
+    int tag = 0;
+    do{
+            if(tag) puts("两次输入密码不一致!请重新输入");
+            printf("密码:");
+            scanf("%s",reg.passwd);
+            printf("再次输入密码:");
+            scanf("%s",second);
+    }while( strcmp(second,reg.passwd));
     reg.flag = REGISTER;
     memcpy(str,&reg,sizeof(account));
     if(send(listenfd,str,MAXSIZE,0) == -1){
         my_err("注册账户时发送出错",__LINE__);
     }
-    else printf("注册账号成功\n");
-    account tmp;
-    memcpy(&tmp,str,MAXSIZE);
-    printf("标志是%d\n",tmp.flag);
-    printf("账号是%s\n",tmp.username);
-    printf("密码是%s\n",tmp.passwd);
+    else{
+        printf("按[ENTER]返回上层");
+        getchar();
+    }
+
+
+    // account tmp;
+    // memcpy(&tmp,str,MAXSIZE);
+    // printf("标志是%d\n",tmp.flag);
+    // printf("昵称是%s\n",tmp.nickname);
+    // printf("密码是%s\n",tmp.passwd);
     return ;
     
 }
@@ -156,6 +171,7 @@ void Main_menu()
 {
     int choice = -1;
     while(choice){
+        usleep(100);
         puts("[1]注册     [2]登录         [0]退出");
         scanf("%d",&choice);
         switch(choice)
