@@ -19,23 +19,6 @@
 #define EPOLLEVENTS 100
 #define MAXSIZE     1024
 #define FDSIZE      1000
-#define REGISTER 1
-#define LOGIN        2
-
-//消息结构体
-typedef struct message
-{
-    int flag;
-    char mg[256];
-}message;
-
-
-typedef struct  account
-{
-    int flag;
-    char  username[30];
-    char passwd[30];
-}account;
 
 //自定义错误处理函数
 void my_err(const char *s,int line)
@@ -53,13 +36,6 @@ int socket_bind(char *ip,int port)
     listenfd = socket(AF_INET,SOCK_STREAM,0);//获取新创建的套接字的文件描述符
     if(listenfd == -1)
         my_err("套接字创建失败",__LINE__);
-
-    //设置套接字使其可以重新绑定端口
-    int optval = 1;
-    if(setsockopt(listenfd,SOL_SOCKET,SO_REUSEADDR,(void *)&optval,sizeof(int)) < 0){
-        my_err("设置套接字失败",__LINE__);
-    }
-
     bzero(&servaddr,sizeof(servaddr)); //初始化套接字地址结构体
     servaddr.sin_family = AF_INET;
     inet_pton(AF_INET,ip,&servaddr.sin_addr);
@@ -89,7 +65,7 @@ void handle_accept(int epollfd,int listenfd)
 {
     int clifd;//客户端套接字描述符
     struct sockaddr_in cliaddr; //客户端地址
-    socklen_t cliaddrlen = sizeof(struct sockaddr_in);
+    socklen_t cliaddrlen;
 
     clifd = accept(listenfd,(struct sockaddr*)&cliaddr,&cliaddrlen); //接受连接请求
     if(clifd == -1){
@@ -101,35 +77,22 @@ void handle_accept(int epollfd,int listenfd)
         //添加一个客户端描述符事件,添加到内核监听事件中
         add_event(epollfd,clifd,EPOLLIN);//后面这个客户端套接字有事件发生时会在handle_events根据类型处理这个事件
 
-        message msg;
-        msg.flag = -1;//1表示欢迎信息
-        strcpy(msg.mg,"Welcome");
-        char buf[MAXSIZE];
-        memcpy(buf,&msg,sizeof(msg));
-        if(send(clifd, buf, MAXSIZE, 0) < 0)//clientfd表示新连接客户端
-             my_err("发送消息失败",__LINE__);
-        else printf("发送消息成功\n");
-        
+        //唤醒线程池中的线程去处理连接请求
+        int pid; 
+        if((pid = fork()) == 0){
+            char *buf2 = "Welcome";
+            if(send(clifd, buf2, MAXSIZE, 0) < 0)//clientfd表示新连接客户端
+                my_err("发送消息失败",__LINE__);
+            else printf("发送消息成功");
+        } 
     }
     
     return ;
 }
-int Account_exist()
-{
-    return 1;
-}
-void Acount_register(char *buf)
-{
-    account reg;
-    memcpy(&reg,buf,sizeof(reg));
-    printf("标志是%d\n",reg.flag);
-    printf("账号是%s\n",reg.username);
-    printf("密码是%s\n",reg.passwd);
-}
+
 //处理读请求的事件
 void do_read(int epollfd,int fd,int sockfd,char *buf)//fd表示待处理事件的描述符
 {
-    
      printf("处理读事件\n");
     int nread;
     nread = recv(fd,buf,MAXSIZE,0);
@@ -138,26 +101,12 @@ void do_read(int epollfd,int fd,int sockfd,char *buf)//fd表示待处理事件�
         close(fd);
     }
     else if(nread == 0){
-        fprintf(stderr,"客户端[%d]关闭\n",fd);
+        fprintf(stderr,"服务器关闭\n");
         close(fd);
-        return ;
     }
-
-     int choice = 0;
-    memcpy(&choice,buf,4);
-    printf("choice = %d\n",choice);
-    switch(choice)
-    {
-        case 1:
-            Acount_register(buf);
-            break;
+    else{
+        printf("接收到的消息是:%s\n",buf);
     }
-    
-    // if(Account_exist())
-    //     if(send(fd,"N",MAXSIZE,0)< 0) my_err("send err",__LINE__);
-    
-
-    
 
     return ;
 }
