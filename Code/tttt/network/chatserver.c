@@ -28,17 +28,20 @@ typedef struct node
         int flag;
 
 }loginnode;
+MYSQL mysql;
+MYSQL_RES *result;
 
 
-int login(loginnode log);
+int login(loginnode log,int fd);
 
-void printResult(MYSQL *mysqlPrint);
-static void do_write(int epfd,int fd,char *buf);
+int judge_account(loginnode log,int fd);     //判断账户是否存在
+//void printResult(MYSQL *mysqlPrint);  //输出数据库例的数据
+static void do_write(int epfd,int fd,char *buf);    
 static void do_read(int epfd,int fd,char *buf);
-int listenfd_accept(int epfd,int fd);
-static void handle_events(int epollfd,struct epoll_event *events,int num,int listenfd,char *buf);
-void my_err(const char * err_string,int line);
-void send_data(int conn_fd,const char *string);
+int listenfd_accept(int epfd,int fd);   //连接 客户端
+static void handle_events(int epollfd,struct epoll_event *events,int num,int listenfd,char *buf); // 处理事件
+void my_err(const char * err_string,int line);     //错误提示
+void send_data(int conn_fd,const char *string);   //发送数据
 
 int main( )
 {
@@ -74,6 +77,12 @@ int main( )
 	epoll_ctl(epfd,EPOLL_CTL_ADD,listenfd,&ev);
 	char buf[BUFSIZE];
 
+	//MYSQL mysql;
+        //MYSQL_RES *result;
+        mysql_init(&mysql);    
+        if(!mysql_real_connect(&mysql,"127.0.0.1","root","073848","chat",0,NULL,0))  my_err("conect mysql",__LINE__);
+     
+	if(mysql_query(&mysql,"set names utf8"))  printf( "FAlse \n");
 
 	int ret = 0;
 	while(1)
@@ -113,7 +122,10 @@ int listenfd_accept(int epfd,int fd)
 	if(clifd < 0) my_err("accept",__LINE__);
 
 	printf( "accept a new client : %s : %d \n",inet_ntoa(cliaddr.sin_addr),cliaddr.sin_port);
-	send_data(clifd,"welcome login my tcp server\n");
+	
+	send_data(clifd,"welcome login my tcp server1\n");
+	send_data(clifd,"welcome login my tcp server2\n");
+	
 	ev.data.fd = clifd;
 	ev.events = EPOLLIN;
 	//向 fd 进行 add 操作 
@@ -135,6 +147,7 @@ static void do_read(int epfd,int fd,char *buf)
 		my_err("recv",__LINE__);
 		close(fd);
 	}
+
 	printf( "ret1 = %d\n",ret);
 	if(ret == 0)
 	{
@@ -146,50 +159,33 @@ static void do_read(int epfd,int fd,char *buf)
 //	puts(buf);
 	printf( "接受\n");
 	memcpy(&log,buf,sizeof(loginnode));
-	printf( "name %s\n",log.name);
-        printf( "number %s\n",log.number);
-        printf( "password %s\n",log.password);
-        printf( "phone %s\n",log.phonenumber);
-        printf( "frine %s\n",log.friendname);
-        printf( "flag = %d\n",log.flag);
 
-	//printf( "log.flag = %d\n",log.flag);
-	//printf( "log.name = %s\n",log.name);
 	switch(log.flag)
 	{
-		case 1: login(log);break;
+		case 1: login(log,fd);break;
+
 	}
 	memset(buf,0,sizeof(buf));
 }
 
-int login(loginnode log)
+int login(loginnode log,int fd)
 {
-	        printf( "name %s\n",log.name);
-        printf( "number %s\n",log.number);
-        printf( "password %s\n",log.password);
-        printf( "phone %s\n",log.phonenumber);
-        printf( "frine %s\n",log.friendname);
-        printf( "flag = %d\n",log.flag);
 
+	char send_buf[1024];
 	printf( "login\n");
-
-	getchar();
-
-	MYSQL mysql;
-        MYSQL_RES *result;
-        mysql_init(&mysql);    
-        if(!mysql_real_connect(&mysql,"127.0.0.1","root","073848","chat",0,NULL,0))  my_err("conect mysql",__LINE__);
-     
-	if(mysql_query(&mysql,"set names utf8"))  printf( "FAlse \n");
+	if(judge_account_byID(log))
+	{
+		send_data(fd,"这个账户已经存在\n");
+		return 0;
+	}
 	char a[1000];						
-//	if(!mysql_query(&mysql,"use login")) printf( "false\n");
 	sprintf(a,"insert into login values('%s','%s','%s','%s','%s')",log.name,log.number,log.password,log.phonenumber,log.friendname);
-//	snprintf(a,sizeof(a),log.name,log.number,log.password,log.phonenumber,log.friendname);
-
 	
 	if(mysql_query(&mysql,a))   printf( "false\n");
+	
 	mysql_query(&mysql,"select *from login");
-	printResult(&mysql);
+
+//	printResult(&mysql);
 
 
 	printf( "log1\n");
@@ -204,15 +200,42 @@ void my_err(const char * err_string,int line)
 	perror(err_string);
 }
 
+int judge_account_byID(loginnode log)
+{
+	int flag = 0;
+	MYSQL_FIELD * field;
+	MYSQL_ROW row;
+	MYSQL_RES *result = NULL;
+	mysql_query(&mysql,"select ID from login ");
+	result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+	//while(field = mysql_fetch_field(result))
+	{
+//		if(strcmp("ID",field->name) == 0)
+		{
+			while(row = mysql_fetch_row(result))
+			{
+				printf( "%s\t",row[0]);
+				if(strcmp(log.number,row[0]) == 0)
+				{
+					flag = 1;     //已经存在这个 id
+				}
+			}
+		}
+	}
+
+	return flag;
+
+}
 void send_data(int conn_fd,const char *string)
 {
 	int ret;
-	if((ret = (send(conn_fd,string,strlen(string) + 1,0))) < 0)   my_err("send",__LINE__);
-	printf( "re3t = %d\n",ret);
-	printf( "string = %d\n",strlen( string));
+	if((ret = (send(conn_fd,string,1024,0))) < 0)   my_err("send",__LINE__);
+//	printf( "re3t = %d\n",ret);
+//	printf( "string = %d\n",strlen( string));
 }
 
-void printResult(MYSQL *mysqlPrint)//打印结果集(此处传入指针，而非内容)
+/*
+ * void printResult(MYSQL *mysqlPrint)//打印结果集(此处传入指针，而非内容)
 {
     MYSQL_RES * result;
     int numFields = 0;
@@ -242,4 +265,4 @@ void printResult(MYSQL *mysqlPrint)//打印结果集(此处传入指针，而非
     }   
     mysql_free_result(result);//释放result空间，避免内存泄漏
 }
-
+*/
