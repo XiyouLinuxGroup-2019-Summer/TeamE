@@ -124,7 +124,10 @@ int listenfd_accept(int epfd,int fd)
 	printf( "accept a new client : %s : %d \n",inet_ntoa(cliaddr.sin_addr),cliaddr.sin_port);
 	
 	send_data(clifd,"welcome login my tcp server1\n");
+	send_data(clifd,"welcome login my tcp server1\n");
+	send_data(clifd,"welcome login my tcp server1\n");
 	send_data(clifd,"welcome login my tcp server2\n");
+	send_data(clifd,"welcome login my tcp server1\n");
 	
 	ev.data.fd = clifd;
 	ev.events = EPOLLIN;
@@ -173,13 +176,9 @@ int login(loginnode log,int fd)
 
 	char send_buf[1024];
 	printf( "login\n");
-	if(judge_account_byID(log))
-	{
-		send_data(fd,"这个账户已经存在\n");
-		return 0;
-	}
+
 	char a[1000];						
-	sprintf(a,"insert into login values('%s','%s','%s','%s','%s')",log.name,log.number,log.password,log.phonenumber,log.friendname);
+	sprintf(a,"insert into login values(NULL,'%s','%s','%s','%s','%s')",NULL,log.name,log.number,log.password,log.phonenumber,log.friendname);
 	
 	if(mysql_query(&mysql,a))   printf( "false\n");
 	
@@ -199,7 +198,7 @@ void my_err(const char * err_string,int line)
 	fprintf(stderr,"line : %d ",line);
 	perror(err_string);
 }
-
+/*
 int judge_account_byID(loginnode log)
 {
 	int flag = 0;
@@ -226,6 +225,7 @@ int judge_account_byID(loginnode log)
 	return flag;
 
 }
+*/
 void send_data(int conn_fd,const char *string)
 {
 	int ret;
