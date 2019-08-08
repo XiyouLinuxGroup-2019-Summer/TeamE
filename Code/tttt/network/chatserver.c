@@ -12,7 +12,7 @@
 #include<fcntl.h>
 #include<mysql/mysql.h>
 
-#define PORT 4507
+#define PORT 45070
 #define LISTENQ 20
 #define EPOLLLEN 2000
 #define BUFSIZE  1024
@@ -20,15 +20,29 @@
 #define MGSIZE 512
 typedef struct node
 {
-        int flag;
+        int  flag;
+	int  id;
         char name[SIZE];
-        char number[SIZE];
+        char account[SIZE];
         char password[SIZE];
         char phonenumber[SIZE];
         char friendname[SIZE];
 	char updata_or_foundpassword[SIZE];
 	int result;
-}loginnode;
+}loginnode;   //登录结构体
+typedef struct
+{
+        int  flag;
+        int  id;
+        char account[SIZE];
+        char name[SIZE];
+        char sex[SIZE];
+        char data[SIZE];
+        char address[SIZE];
+        char constellation[SIZE];
+        char email[SIZE];
+}informationnode;  //完善用户信息 结构体
+
 typedef struct 
 {
         int flag ;
@@ -38,6 +52,8 @@ typedef struct
 MYSQL mysql;
 MYSQL_RES *result;
 
+int Modity_information(informationnode inf,int fd);
+int command_analy_flag(char a[5]);    //用来解析flag
 int Account_updatapassword_persistence(loginnode login,int fd);
 int Account_login_persistence(loginnode login,int fd);    //登录
 int Account_resgine_persistence(loginnode log,int fd);  //注册
@@ -98,6 +114,7 @@ int main( )
 	{
 		//委托内核监测事件
 		ret = epoll_wait(epfd,events,EPOLLLEN,-1);
+		printf( "ret = %d\n",ret);
 		if(ret > 0) handle_events(epfd,events,ret,listenfd,buf);
 
 	}
@@ -130,7 +147,7 @@ int listenfd_accept(int epfd,int fd)
 	clifd = accept(fd,(struct sockaddr *)&cliaddr,&cliaddrlen);
 	if(clifd < 0) my_err("accept",__LINE__);
 
-	printf( "accept a new client : %s : %d \n",inet_ntoa(cliaddr.sin_addr),cliaddr.sin_port);
+	printf( "accept a new client : %s : %d \n",inet_ntoa(cliaddr.sin_addr),ntohs(cliaddr.sin_port));
 	
 //	send_data(clifd,"welcome login my tcp server1\n");
 	
@@ -144,12 +161,15 @@ int listenfd_accept(int epfd,int fd)
 
 static void do_read(int epfd,int fd,char *buf)
 {
+	char anly[5];
 	loginnode log;
 	int lack;    //计算还剩 多少数据 需要接收
 	char *p = buf;
 	int ret;
 	int ret1;  // 计算 第二次 接受到的数据
 	int i;           //sizeof(buf)   出错   因为 buf 是个指针,指针一次只有 8 个字节
+	int judge;
+	informationnode inf;
 	memset(buf,0,1024);
 	memset(&log,0,sizeof(loginnode));
 
@@ -169,8 +189,6 @@ static void do_read(int epfd,int fd,char *buf)
 		}   
 		else break;
 	}   
-
-
 	printf( "ret = %d\n",ret);
 	if(ret == 0)
 	{
@@ -181,15 +199,34 @@ static void do_read(int epfd,int fd,char *buf)
 	buf[ret] = '\0';  //将数据 结束标志 '\n' 替换成 字符串结束标志
 //	puts(buf);
 	printf( "接受\n");
-	memcpy(&log,buf,sizeof(loginnode));
+
+	strncpy(anly,buf,sizeof(int));
+	judge = command_analy_flag(anly);
+	switch(judge)
+	{
+		case 1:
+		case 2:
+		case 3:
+		case 4:
+			memcpy(&log,buf,sizeof(loginnode));
+			break;
+		case 5:
+			memcpy(&inf,buf,sizeof(informationnode));
+			break;
+
+	}
+
 	printf( "flag = %d\n",log.flag);
-	switch(log.flag)
+
+	switch(judge)
 	{
 		case 1: Account_login_persistence(log,fd);break;
 		case 2: Account_resgine_persistence(log,fd);break;
 		case 3: Account_updatapassword_persistence(log,fd);break;
 		case 4: Account_foundpassword_persistence(log,fd);break;
+		case 5: Modity_information(inf,fd);break;
 	}
+
 	memset(buf,0,sizeof(buf));
 }
 
@@ -202,7 +239,7 @@ int Account_resgine_persistence(loginnode log,int fd)
 	char send_buf[1024];
 	printf( "注册\n");
 	char data[1000];
-	sprintf(data,"insert into login values('%d','%s','%s','%s','%s','%s')",NULL,log.number,log.password,log.name,log.phonenumber,log.friendname);
+	sprintf(data,"insert into login values('%d','%s','%s','%s','%s','%s')",NULL,log.account,log.password,log.name,log.phonenumber,log.friendname);
 	
 	if(mysql_query(&mysql,data))
 	{
@@ -226,15 +263,16 @@ int Account_login_persistence(loginnode log,int fd)    //登录
         MYSQL_FIELD * field;
         MYSQL_ROW row;
         MYSQL_RES *result = NULL;
-        mysql_query(&mysql,"select account,password from login ");
+        mysql_query(&mysql,"select account,password,id from login ");
         result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
 	//if(result == NULL)   printf( "111\n");
 	while(row = mysql_fetch_row(result))
 	{
 	//	printf( "%s\t",row[0]);
-		if(strcmp(log.number,row[0]) == 0 && strcmp(log.password,row[1]) == 0)  //在数据库里查找是否 有账号和密码
+		if(strcmp(log.account,row[0]) == 0 && strcmp(log.password,row[1]) == 0)  //在数据库里查找是否 有账号和密码
 		{
-			flag = 1;     
+			flag = 1;
+			memcpy(&log.id,row[2],sizeof(int));
 			break;
 		}
 	}
@@ -265,9 +303,9 @@ int Account_updatapassword_persistence(loginnode log,int fd)
 	while(row = mysql_fetch_row(result))
 	{
 		printf( "%s\t",row[0]);
-		if(strcmp(log.number,row[0]) == 0 && strcmp(log.password,row[1]) == 0)  //如果账号和密码匹配
+		if(strcmp(log.account,row[0]) == 0 && strcmp(log.password,row[1]) == 0)  //如果账号和密码匹配
 		{
-			sprintf(data,"update login set password = '%s' where account = '%s'",log.updata_or_foundpassword,log.number);
+			sprintf(data,"update login set password = '%s' where account = '%s'",log.updata_or_foundpassword,log.account);
 			mysql_query(&mysql,data);  //执行成功返回false  ,失败返回true
 			flag = 1;
 
@@ -296,7 +334,7 @@ int Account_foundpassword_persistence(loginnode log,int fd)
 	while(row = mysql_fetch_row(result))
 	{
 		printf( "%s\t",row[0]);
-		if(strcmp(log.number,row[0]) == 0)  //在数据库里查找是否 有账号和密码
+		if(strcmp(log.account,row[0]) == 0)  //在数据库里查找是否 有账号和密码
 		{
 			if(strcmp(log.friendname,row[3]) == 0 ||strcmp(log.phonenumber,row[2]) == 0)
 			{
@@ -361,35 +399,13 @@ void send_data(int conn_fd,const char *string)
 //	printf( "string = %d\n",strlen( string));
 }
 
-/*
- * void printResult(MYSQL *mysqlPrint)//打印结果集(此处传入指针，而非内容)
+int command_analy_flag(char a[5])    //用来解析flag
 {
-    MYSQL_RES * result;
-    int numFields = 0;
-    int numRows = 0;
-    MYSQL_FIELD * field;
-    MYSQL_ROW row;
-    int i = 0;
-    result = mysql_store_result(mysqlPrint);//将查询的全部结果读取到客户端
-    if(NULL == result)   printf( "error\n");
-
-    numFields = mysql_num_fields(result);//统计结果集中的字段数
-    numRows = mysql_num_rows(result);//统计结果集的行数
-    while(row = mysql_fetch_row(result))//返回结果集中的列信息(字段)
-        for(i = 0;i < numFields;i++)
-	    printf("%s\t", row[i]);
-    printf("\n");
-    if(result)
-    {   
-        while(row = mysql_fetch_row(result))//返回结果集中行的记录
-        {   
-            for(i = 0; i < numFields; i++)
-            {   
-                printf("%s\t", row[i]);                                                                                                                  
-            }   
-            printf("\n");
-        }   
-    }   
-    mysql_free_result(result);//释放result空间，避免内存泄漏
+        int flag;
+        memcpy(&flag,a,sizeof(int));
+        return flag;
 }
-*/
+int Modity_information(informationnode inf,int fd)
+{
+
+}
