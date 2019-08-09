@@ -11,6 +11,8 @@
 #include<sys/epoll.h>
 #include<fcntl.h>
 #include<mysql/mysql.h>
+#include<pthread.h>
+
 
 #define PORT 45070
 #define LISTENQ 20
@@ -18,19 +20,42 @@
 #define BUFSIZE  1024
 #define SIZE 30
 #define MGSIZE 512
-typedef struct node
+typedef struct
 {
         int  flag;
-	int  id;
+        int  id;
+        char online[SIZE];
         char name[SIZE];
-        char account[SIZE];
+        char account[SIZE];  //account
         char password[SIZE];
         char phonenumber[SIZE];
         char friendname[SIZE];
-	char updata_or_foundpassword[SIZE];
-	int result;
-}loginnode;   //登录结构体
+        char updata_or_foundpassword[SIZE];
+        int  result;
+}loginnode;
 
+typedef struct online_node   //存储上线 的用户 ID,套接字,账号
+{
+	int fd;
+	//int id;
+	//char account[SIZE];
+	struct online_node  *next;
+	struct online_node  *prev;
+}online_node_t;
+
+typedef online_node_t* online_list_t;
+
+typedef struct
+{
+        int flag;
+        int id; 
+}downonline;
+
+
+
+online_list_t head;
+List_Init(head,online_node_t);
+//online 
 
 typedef struct
 {
@@ -52,12 +77,15 @@ typedef struct
         char message[MGSIZE];
 }mgnode;
 
+
+pthread_mutex_t mutex;
 MYSQL mysql;
 MYSQL_RES *result;
-int View_information_persistence(informationnode inf,int fd);
-int Modity_information_persistence(informationnode inf,int fd);
+int offline_persistence();   //下线通知
+int View_information_persistence(informationnode inf,int fd); //查看用户信息
+int Modity_information_persistence(informationnode inf,int fd);   //修改用户信息
 int command_analy_flag(char a[5]);    //用来解析flag
-int Account_updatapassword_persistence(loginnode login,int fd);
+int Account_updatapassword_persistence(loginnode login,int fd); //修改密码
 int Account_login_persistence(loginnode login,int fd);    //登录
 int Account_resgine_persistence(loginnode log,int fd);  //注册
 int Account_foundpassword_persistence(loginnode log ,int fd);   //找回密码
@@ -75,6 +103,8 @@ int main( )
 {
 	int listenfd;
 	struct sockaddr_in servaddr;
+	
+	pthread_mutex_init(&mutex,NULL);
 
 	//创建一个套接字
 	listenfd = socket(AF_INET,SOCK_STREAM,0);
@@ -137,12 +167,15 @@ static void handle_events(int epfd,struct epoll_event *events,int num,int listen
 			//printf( "events %d\n",events[i].events);
 			if(events[i].events & EPOLLRDHUP)
 			{
+				printf( "断开连接\n");
 				epoll_ctl(epfd,EPOLL_CTL_DEL,fd,NULL);
 				continue;
 			}
-			else    do_read(epfd,fd,buf);
+			else
+			{
+				do_read(epfd,fd,buf);
+			}
 		}
-		else if(events[i].events & EPOLLRDHUP)    printf( "123\n");
 		else if(events[i].events & EPOLLOUT)   do_write(epfd,fd,buf);
 	}
 
@@ -176,6 +209,7 @@ int listenfd_accept(int epfd,int fd)
 static void do_read(int epfd,int fd,char *buf)
 {
 	char anly[5];
+	downonline offline;
 	loginnode log;
 	int lack;    //计算还剩 多少数据 需要接收
 	char *p = buf;
@@ -204,7 +238,7 @@ static void do_read(int epfd,int fd,char *buf)
 		}   
 		else break;
 	}   
-	printf( "retqwe = %d\n",ret);
+//	printf( "retqwe = %d\n",ret);
 	if(ret == 0)
 	{
 		printf("client exit\n");
@@ -217,6 +251,7 @@ static void do_read(int epfd,int fd,char *buf)
 
 	strncpy(anly,buf,sizeof(int));
 	judge = command_analy_flag(anly);
+	printf( "judge = %d\n",judge);
 	switch(judge)
 	{
 		case 1:
@@ -229,6 +264,10 @@ static void do_read(int epfd,int fd,char *buf)
 		case 6:
 			memcpy(&inf,buf,sizeof(informationnode));
 			break;
+		case -1:
+			memcpy(&offline,buf,sizeof(downonline));
+			break;
+
 
 	}
 
@@ -236,6 +275,7 @@ static void do_read(int epfd,int fd,char *buf)
 	printf( " judge = %d\n",judge);
 	switch(judge)
 	{
+		case -1:offline_persistence(offline);break;
 		case 1: Account_login_persistence(log,fd);break;
 		case 2: Account_resgine_persistence(log,fd);break;
 		case 3: Account_updatapassword_persistence(log,fd);break;
@@ -252,10 +292,11 @@ int Account_resgine_persistence(loginnode log,int fd)
 	int re;
 	char buf[1024];
 
+	strcpy(log.online,"0");
 	int flag = 1;
 	printf( "注册\n");
 	char data[1000];
-	sprintf(data,"insert into login values('%d','%s','%s','%s','%s','%s')",NULL,log.account,log.password,log.name,log.phonenumber,log.friendname);
+	sprintf(data,"insert into login values('%d','%s','%s','%s','%s','%s','%s')",NULL,log.account,log.password,log.name,log.phonenumber,log.friendname,log.online);
 	
 	printf("log.account = %s\n",log.account);
 	if(mysql_query(&mysql,data))
@@ -264,6 +305,7 @@ int Account_resgine_persistence(loginnode log,int fd)
 		flag = 0;
 	}
 	log.result = flag;
+	printf( "log.result = %d\n",log.result);
         memset(buf,0,1024);    //初始化
         memcpy(buf,&log,sizeof(loginnode));    //将结构体的内容转为字符串
         if((re = (send(fd,buf,1024,0))) < 0)  printf( "错误\n"); 	
@@ -274,24 +316,33 @@ int Account_resgine_persistence(loginnode log,int fd)
 int Account_login_persistence(loginnode log,int fd)    //登录
 {
 	char buf[1024];
+	char data[1024];
+
 	printf( "登录\n");
+	//登录时更新状态
+	char temp[1000];
+	sprintf(temp,"update login set online = 0 where id = '%d'",log.id);
+	mysql_query(&mysql,temp);  //执行成功返回false  ,失败返回true
+	
 	int re;
         int flag = 0;
         MYSQL_FIELD * field;
         MYSQL_ROW row;
         MYSQL_RES *result = NULL;
-        mysql_query(&mysql,"select account,password,id from login ");
+	strcpy(log.online,"1");
+
+	sprintf(data,"update login set online = '%s' where account = '%s'",log.online,log.account);
+	mysql_query(&mysql,data);  //执行成功返回false  ,失败返回true
+        
+	mysql_query(&mysql,"select account,password,id from login ");
         result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
 	//if(result == NULL)   printf( "111\n");
 	while(row = mysql_fetch_row(result))
 	{
-	//	printf( "%s\t",row[0]);
 		if(strcmp(log.account,row[0]) == 0 && strcmp(log.password,row[1]) == 0)  //在数据库里查找是否 有账号和密码
 		{
 			flag = 1;
-	//		printf( "id = %s\n",row[2]);
 			log.id = atoi(row[2]);
-	//		printf( "log.id = %d\n",log.id);
 			break;
 		}
 	}
@@ -302,9 +353,7 @@ int Account_login_persistence(loginnode log,int fd)    //登录
         if((re = (send(fd,buf,1024,0))) < 0)  printf( "错误\n"); 	
 
 	printf( "re = %d\n",re);
-//	printf( "password = %s\n",log.updata_or_foundpassword);
-
-
+	
 	return flag;
 }
 int Account_updatapassword_persistence(loginnode log,int fd)
@@ -327,7 +376,6 @@ int Account_updatapassword_persistence(loginnode log,int fd)
 			sprintf(data,"update login set password = '%s' where account = '%s'",log.updata_or_foundpassword,log.account);
 			mysql_query(&mysql,data);  //执行成功返回false  ,失败返回true
 			flag = 1;
-
 		}
 	}
 
@@ -521,4 +569,11 @@ int View_information_persistence(informationnode inf,int fd)
         memcpy(buf,&inf,sizeof(informationnode));    //将结构体的内容转为字符串
         if((re = (send(fd,buf,1024,0))) < 0)  printf( "错误\n"); 	
 
+}
+int offline_persistence(downonline offline)  //下线时 ,更新 状态
+{
+	char temp[1000];
+//	printf( "id = %d\n",offline.id);
+	sprintf(temp,"update login set online = 0 where id = '%d'",offline.id);
+	mysql_query(&mysql,temp);  //执行成功返回false  ,失败返回true
 }

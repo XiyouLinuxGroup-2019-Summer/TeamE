@@ -11,7 +11,7 @@
 #include<pthread.h>
 #include<stdlib.h>
 
-
+#define MSGSIZE 512
 #define BUFFSIZE 1024
 #define MAXSIZE 1024
 #define IPADDRESS "127.0.0.1"
@@ -19,10 +19,18 @@
 #define FDSIZE 1024
 #define SIZE 30
 #define MGSZIE 512
+
+typedef struct
+{
+	int flag;
+	int id;
+}downonline;
+
 typedef struct 
 {
 	int  flag;
 	int  id;
+	char online[SIZE];
 	char name[SIZE];
 	char account[SIZE];  //account
 	char password[SIZE];
@@ -45,6 +53,22 @@ typedef struct
 	char constellation[SIZE];
 	char email[SIZE];
 }informationnode;
+typedef struct    //添加好友
+{
+	int  flag;
+	char send[SIZE];   //
+	char accept[SIZE];
+
+}a;
+
+
+typedef struct     //聊天结构体
+{ 
+	int flag;
+	char send[SIZE];    //存放发送方用户id
+	char accept[SIZE];   //存放接收方 id
+	char msg[MSGSIZE];     //消息的最大长度
+}msgnode;
 
 typedef struct 
 {
@@ -52,13 +76,15 @@ typedef struct
 	char message[MGSZIE];
 }mgnode;
 
-informationnode inf;  //创建一个存储用户的结构体
+informationnode inf;  //创建一个存储用户信息的结构体
 
 pthread_mutex_t mutex;  //创建一把锁
 pthread_cond_t cond;    //创建一个信号
 
 
-int View_information_UI(fd);    //查看用户信息
+int offonline(int fd);   //下线通知
+int Friend_management_UI(int fd);   //好友管理主界面
+int View_information_UI(int fd);    //查看用户信息
 int Modity_information_UI(int fd);   //修改用户信息
 int major_UI(int fd);    //登录有主界面
 char chat[1024];
@@ -137,13 +163,13 @@ int login_connect(int conn_fd)
 	do
 	{
 		printf( "欢迎使用chat\n");
-		printf( "请输入你的选项\n");
 		printf( "[1]  登录\n");
 		printf( "[2]  注册\n");
 		printf( "[3]  修改密码\n");
 		printf( "[4]  找回密码\n");
 		printf( "[5]  退出\n");
 
+		printf( "请输入你的选项 :");
 		scanf( "%d",&command);
 		getchar();
 
@@ -161,6 +187,7 @@ int login_connect(int conn_fd)
 			case 4:
 				success = Account_foundpassword_UI(conn_fd);break;
 			case 5:
+				offonline(conn_fd);
 		//		exit(1);
 				break;
 			default :
@@ -361,6 +388,7 @@ int *main_recv(void *arg)
 
 		}
 		printf( "judge = %d\n",judge);
+		printf( "result = %d\n",log.result);
 		pthread_mutex_lock(&mutex);
 		switch(judge)
 		{
@@ -469,7 +497,7 @@ int major_UI(int fd)
 		printf( "[6]  查看用户信息\n");
 		printf( "[7]  退出\n");
 	
-		printf( "请输入选项\n");
+		printf( "请输入选项 :");
 		scanf( "%d",&command);
 		getchar();
 	
@@ -477,7 +505,7 @@ int major_UI(int fd)
 		{
 	
 			case 1:
-	//			Friend_management_UI();
+	//			Friend_management_UI(fd);
 				break;
 			case 2:
 	//			Chat_communication_UI();
@@ -493,6 +521,8 @@ int major_UI(int fd)
 				break;
 			case 6:
 				View_information_UI(fd);
+				break;
+			case 7:
 				break;
 			default :
 				printf( "选项错误\n");
@@ -543,8 +573,8 @@ int View_information_UI(int fd)
 	 
 	 memset(buf,0,1024);    //初始化                                                   
          memcpy(buf,&inf,sizeof(informationnode));    //将结构体的内容转为字符串
-	
-         if((re = (send(fd,buf,1024,0))) < 0)  printf( "错误\n");
+         
+	 if((re = (send(fd,buf,1024,0))) < 0)  printf( "错误\n");
 	
          pthread_mutex_lock(&mutex);   //加锁  ,对全局变量进行操作
          pthread_cond_wait(&cond,&mutex);
@@ -553,4 +583,57 @@ int View_information_UI(int fd)
          pthread_mutex_unlock(&mutex);
 	
 	 getchar();
+}
+int Friend_management_UI(int fd)
+{
+	int command;
+	do
+	{
+		printf( "[1]  添加好友\n");
+		printf( "[2]  删除好友\n");
+		printf( "[3]  查看好友列表\n");
+		printf( "[4]  退出\n");
+		printf( "请输入选项:");
+
+		scanf( "%d",&command);
+		getchar();
+
+		switch(command)
+		{
+			case 1:
+				//Friend_add_UI(fd);
+				//break;
+			case 2:
+				//Friend_del_UI();
+				//break;
+			case 3:
+				//Friend_view_UI();
+				//break;
+			default :
+				printf( "选项错误\n");
+		}
+	}while(command != 4);
+
+	return 0;
+
+}
+
+int Friend_add_UI()
+{
+	
+}
+int offonline(int fd)
+{
+	int re;
+	char buf[1024];
+	
+	downonline online;
+	online.id = inf.id;
+//	printf
+	online.flag = -1;
+	memset(buf,0,1024);    //初始化                                                   
+        memcpy(buf,&online,sizeof(downonline));    //将结构体的内容转为字符串
+        if((re = (send(fd,buf,1024,0))) < 0)  printf( "错误\n");
+	printf( "re = %d\n",re);
+	printf( "退出\n");
 }
