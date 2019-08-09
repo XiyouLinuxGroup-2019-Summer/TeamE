@@ -37,13 +37,11 @@ typedef struct
 typedef struct online_node   //存储上线 的用户 ID,套接字,账号
 {
 	int fd;
-	//int id;
-	//char account[SIZE];
+	int id;
+	char account[SIZE];
 	struct online_node  *next;
 	struct online_node  *prev;
-}online_node_t;
-
-typedef online_node_t* online_list_t;
+}online_node_t,* online_list_t;
 
 typedef struct
 {
@@ -51,10 +49,22 @@ typedef struct
         int id; 
 }downonline;
 
+typedef struct    //添加好友
+{
+        int  flag;
+        int  result;
+        char sendaccount[SIZE];   //  
+        char acceptaccount[SIZE];
+        int  sendid;    //存放发送方用户id
+        int  acceptid;   //存放接收方 id
+        int  sendfd;     //存放发送方的套接字                                                      
+        int  acceptfd;   //存放接收方的套接字
+
+}friendnode;
 
 
-online_list_t head;
-List_Init(head,online_node_t);
+
+
 //online 
 
 typedef struct
@@ -77,11 +87,15 @@ typedef struct
         char message[MGSIZE];
 }mgnode;
 
+online_list_t head;
 
 pthread_mutex_t mutex;
 MYSQL mysql;
 MYSQL_RES *result;
-int offline_persistence();   //下线通知
+
+int friend_add_deal_persistence(friendnode fid);
+int friend_add_send_persistence(friendnode fid,int fd);
+int offline_persistence(downonline offline);   //下线通知
 int View_information_persistence(informationnode inf,int fd); //查看用户信息
 int Modity_information_persistence(informationnode inf,int fd);   //修改用户信息
 int command_analy_flag(char a[5]);    //用来解析flag
@@ -103,6 +117,8 @@ int main( )
 {
 	int listenfd;
 	struct sockaddr_in servaddr;
+
+	List_Init(head,online_node_t);
 	
 	pthread_mutex_init(&mutex,NULL);
 
@@ -209,6 +225,7 @@ int listenfd_accept(int epfd,int fd)
 static void do_read(int epfd,int fd,char *buf)
 {
 	char anly[5];
+	friendnode fid;
 	downonline offline;
 	loginnode log;
 	int lack;    //计算还剩 多少数据 需要接收
@@ -267,8 +284,9 @@ static void do_read(int epfd,int fd,char *buf)
 		case -1:
 			memcpy(&offline,buf,sizeof(downonline));
 			break;
-
-
+		case 7:
+			memcpy(&fid,buf,sizeof(friendnode));
+			break;
 	}
 
 	printf( "infflag = %d\n",inf.flag);
@@ -282,6 +300,8 @@ static void do_read(int epfd,int fd,char *buf)
 		case 4: Account_foundpassword_persistence(log,fd);break;
 		case 5: Modity_information_persistence(inf,fd);break;
 		case 6: View_information_persistence(inf,fd);break;
+		case 7:friend_add_send_persistence(fid,fd);break;
+		case 8:friend_add_deal_persistence(fid);break;
 	}
 
 	memset(buf,0,sizeof(buf));
@@ -345,6 +365,14 @@ int Account_login_persistence(loginnode log,int fd)    //登录
 			log.id = atoi(row[2]);
 			break;
 		}
+	}
+	if(flag == 1)
+	{
+		online_node_t *temp = (online_node_t *)malloc(sizeof(online_node_t));
+		temp->fd = fd;
+		strcpy(temp->account,log.account);
+		temp->id = log.id;
+		List_AddHead(head,temp);
 	}
 	printf( "登录  flag = %d\n",flag);
 	log.result = flag;
@@ -576,4 +604,32 @@ int offline_persistence(downonline offline)  //下线时 ,更新 状态
 //	printf( "id = %d\n",offline.id);
 	sprintf(temp,"update login set online = 0 where id = '%d'",offline.id);
 	mysql_query(&mysql,temp);  //执行成功返回false  ,失败返回true
+}
+
+int friend_add_send_persistence(friendnode fid,int fd)
+{
+	char buf[1024];
+	int re = 0;
+	int flag = 0;
+	online_node_t *curpos;
+	List_ForEach(head,curpos)
+	{
+		if(strcmp(curpos->account,fid.acceptaccount) == 0)
+		{
+			flag == 1;
+			fid.acceptfd = curpos->fd;
+			fid.acceptid = curpos->id;
+			break;
+		}
+	}
+        fid.flag = 7;
+	memset(buf,0,1024);    //初始化
+        memcpy(buf,&fid,sizeof(friendnode));    //将结构体的内容转为字符串
+        if((re = (send(fid.acceptfd,buf,1024,0))) < 0)  printf( "错误\n"); 	
+
+}
+int friend_add_deal_persistence(friendnode fid)
+{
+	if(fid.result == 1)   printf( "账号 为 %s 接受 %s 的好友请求\n",fid.acceptaccount,fid.sendaccount);
+	else   printf( "账号 为 %s 不接受 %s 的好友请求\n",fid.acceptaccount,fid.sendaccount);
 }

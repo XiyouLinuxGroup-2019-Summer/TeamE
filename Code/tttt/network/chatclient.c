@@ -53,20 +53,28 @@ typedef struct
 	char constellation[SIZE];
 	char email[SIZE];
 }informationnode;
+
 typedef struct    //添加好友
 {
 	int  flag;
-	char send[SIZE];   //
-	char accept[SIZE];
+	int  result;
+	char sendaccount[SIZE];   //
+	char acceptaccount[SIZE];
+	int  sendid;    //存放发送方用户id
+	int  acceptid;   //存放接收方 id
+	int  sendfd;     //存放发送方的套接字
+	int  acceptfd;   //存放接收方的套接字
 
-}a;
+}friendnode;
 
 
 typedef struct     //聊天结构体
 { 
 	int flag;
-	char send[SIZE];    //存放发送方用户id
-	char accept[SIZE];   //存放接收方 id
+	char sendaccount[SIZE];   //存放发送方的账号
+	char acceptcount[SIZE];    //存放接受方的账号
+	int sendid;    //存放发送方用户id
+	int acceptid;   //存放接收方 id
 	char msg[MSGSIZE];     //消息的最大长度
 }msgnode;
 
@@ -81,7 +89,7 @@ informationnode inf;  //创建一个存储用户信息的结构体
 pthread_mutex_t mutex;  //创建一把锁
 pthread_cond_t cond;    //创建一个信号
 
-
+int friend_add_send_UI(int fd);
 int offonline(int fd);   //下线通知
 int Friend_management_UI(int fd);   //好友管理主界面
 int View_information_UI(int fd);    //查看用户信息
@@ -337,6 +345,7 @@ int Account_regist_UI(int conn_fd)
 int *main_recv(void *arg)
 {
 	loginnode log;
+	friendnode fid;
 	char recv_buf[BUFFSIZE];
 	int  fd = (int)arg;   //转化 fd
 	char *p = recv_buf;   //用来接受信息
@@ -344,6 +353,7 @@ int *main_recv(void *arg)
 	int ret1;
 	int lack;
 	int judge = 0;
+
 	pthread_mutex_init(&mutex,NULL);
 	pthread_cond_init(&cond,NULL);
 
@@ -385,7 +395,11 @@ int *main_recv(void *arg)
 			case 6:
 				//memset(&log,0,sizeof(loginnode));
         	 		memcpy(&inf,recv_buf,sizeof(informationnode));    //将结构体的内容转为字符串
-
+				break;
+			case 7:
+			case 8:
+				memcpy(&fid,recv_buf,sizeof(friendnode));
+				break;
 		}
 		printf( "judge = %d\n",judge);
 		printf( "result = %d\n",log.result);
@@ -455,6 +469,7 @@ int *main_recv(void *arg)
 					printf( "用户信息修改失败\n");
 					Flag = 0;
 				}
+				break;
 			case 6:
 				if(inf.result == 1)
 				{
@@ -466,6 +481,14 @@ int *main_recv(void *arg)
 					printf( "星座:%s\n",inf.constellation);
 					printf( "邮箱:%s\n",inf.email);
 				}
+				break;
+			case 7:
+				friend_add_accept_UI(fid,fd);
+				break;
+			case 8:
+		//		friend_add_accept_UI(fid,fd);
+				break;
+
 		}
 
                 pthread_mutex_unlock(&mutex);
@@ -505,7 +528,7 @@ int major_UI(int fd)
 		{
 	
 			case 1:
-	//			Friend_management_UI(fd);
+				Friend_management_UI(fd);
 				break;
 			case 2:
 	//			Chat_communication_UI();
@@ -601,8 +624,8 @@ int Friend_management_UI(int fd)
 		switch(command)
 		{
 			case 1:
-				//Friend_add_UI(fd);
-				//break;
+				Friend_add_send_UI(fd);
+				break;
 			case 2:
 				//Friend_del_UI();
 				//break;
@@ -618,22 +641,57 @@ int Friend_management_UI(int fd)
 
 }
 
-int Friend_add_UI()
+int Friend_add_send_UI(int fd)
 {
-	
+	int re;
+	char buf[1024];
+
+	friendnode fid;
+	fid.flag = 7;
+	printf( "请输入你想要加为好友的 账号:");
+	gets(fid.acceptaccount);
+	strcpy(fid.sendaccount,inf.account);
+	fid.sendid = inf.id;   //发送方的id
+	fid.sendfd = fd;       //发送方的套接字
+	memset(buf,0,1024);    //初始化                                                   
+        memcpy(buf,&fid,sizeof(friendnode));    //将结构体的内容转为字符串
+        if((re = (send(fd,buf,1024,0))) < 0)  printf( "错误\n");
+
 }
+
+
+
+
 int offonline(int fd)
 {
 	int re;
 	char buf[1024];
-	
 	downonline online;
 	online.id = inf.id;
-//	printf
 	online.flag = -1;
 	memset(buf,0,1024);    //初始化                                                   
         memcpy(buf,&online,sizeof(downonline));    //将结构体的内容转为字符串
         if((re = (send(fd,buf,1024,0))) < 0)  printf( "错误\n");
 	printf( "re = %d\n",re);
 	printf( "退出\n");
+}
+
+
+int friend_add_accept_UI(friendnode fid,int fd)
+{
+	char buf[1024];
+	int re;
+	//while(getchar() != '\n');
+	printf( "账号为:%s请求加为好友!\n",fid.sendaccount);
+	printf("是否同意 ? \n");
+	printf( " 1 同意   0 不同意\n");
+	scanf( "%d",&fid.result);
+	printf( "friend_add_result = %d\n",fid.result);
+	
+
+	memset(buf,0,1024);    //初始化        
+	fid.flag = 8;
+        memcpy(buf,&fid,sizeof(friendnode));    //将结构体的内容转为字符串
+        if((re = (send(fd,buf,1024,0))) < 0)  printf( "错误\n");
+	
 }
