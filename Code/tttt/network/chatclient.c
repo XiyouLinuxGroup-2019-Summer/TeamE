@@ -35,7 +35,7 @@ typedef struct
 typedef struct
 {
 	int  flag;
-	int  id;
+	int  id;    //id 为 login 的id
 	int  result;
 	char account[SIZE];
 	char name[SIZE];
@@ -58,8 +58,8 @@ pthread_mutex_t mutex;  //创建一把锁
 pthread_cond_t cond;    //创建一个信号
 
 
-int View_information(fd);    //查看用户信息
-int Modity_information(int fd);   //修改用户信息
+int View_information_UI(fd);    //查看用户信息
+int Modity_information_UI(int fd);   //修改用户信息
 int major_UI(int fd);    //登录有主界面
 char chat[1024];
 //void my_err(const char * err_string,int line);
@@ -354,6 +354,11 @@ int *main_recv(void *arg)
 				memset(&log,0,sizeof(loginnode));
         	 		memcpy(&log,recv_buf,sizeof(loginnode));    //将结构体的内容转为字符串
 				break;
+			case 5:
+			case 6:
+				//memset(&log,0,sizeof(loginnode));
+        	 		memcpy(&inf,recv_buf,sizeof(informationnode));    //将结构体的内容转为字符串
+
 		}
 		printf( "judge = %d\n",judge);
 		pthread_mutex_lock(&mutex);
@@ -363,6 +368,7 @@ int *main_recv(void *arg)
 				if(log.result == 1)
 				{
 					printf( "登录成功\n");
+					printf( "log.id = %d\n",log.id);
 					inf.id = log.id;
 					Flag = 1;
 				}
@@ -411,7 +417,7 @@ int *main_recv(void *arg)
 				}
 				break;
 			case 5:
-				if(inf.flag == 1)
+				if(inf.result == 1)
 				{
 					printf( "用户信息修改成功\n");
 					Flag = 1;
@@ -420,6 +426,17 @@ int *main_recv(void *arg)
 				{
 					printf( "用户信息修改失败\n");
 					Flag = 0;
+				}
+			case 6:
+				if(inf.result == 1)
+				{
+					printf( "账号:%s\n",inf.account);
+					printf( "昵称:%s\n",inf.name);
+					printf( "性别:%s\n",inf.sex);
+					printf( "生日:%s\n",inf.data);
+					printf( "地址:%s\n",inf.address);
+					printf( "星座:%s\n",inf.constellation);
+					printf( "邮箱:%s\n",inf.email);
 				}
 		}
 
@@ -472,16 +489,18 @@ int major_UI(int fd)
 	//			File_transfer_UI();
 				break;
 			case 5:
-				Modity_information(fd);
+				Modity_information_UI(fd);
 				break;
 			case 6:
-	//			View_information(fd);
+				View_information_UI(fd);
+				break;
 			default :
 				printf( "选项错误\n");
-		}		
+		}	
+		printf( "command = %d\n",command);
 	}while(command != 7);
 }
-int Modity_information(int fd)
+int Modity_information_UI(int fd)
 {
  	 int re;
 	 int result;
@@ -513,26 +532,25 @@ int Modity_information(int fd)
 
 
 }
-int View_information(int fd)
+int View_information_UI(int fd)
 {
          int re;
          int result;
          inf.flag = 6;
          char buf[1024];
-	 //已知inf 
+	 //已知inf用户的主键 ID,和账号;
+
 	 
 	 memset(buf,0,1024);    //初始化                                                   
          memcpy(buf,&inf,sizeof(informationnode));    //将结构体的内容转为字符串
-
+	
          if((re = (send(fd,buf,1024,0))) < 0)  printf( "错误\n");
-
+	
          pthread_mutex_lock(&mutex);   //加锁  ,对全局变量进行操作
          pthread_cond_wait(&cond,&mutex);
          result = Flag;
          
          pthread_mutex_unlock(&mutex);
-
-
-
-
+	
+	 getchar();
 }

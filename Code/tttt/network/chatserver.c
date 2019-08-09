@@ -30,10 +30,13 @@ typedef struct node
 	char updata_or_foundpassword[SIZE];
 	int result;
 }loginnode;   //登录结构体
+
+
 typedef struct
 {
         int  flag;
         int  id;
+	int  result;
         char account[SIZE];
         char name[SIZE];
         char sex[SIZE];
@@ -51,8 +54,8 @@ typedef struct
 
 MYSQL mysql;
 MYSQL_RES *result;
-
-int Modity_information(informationnode inf,int fd);
+int View_information_persistence(informationnode inf,int fd);
+int Modity_information_persistence(informationnode inf,int fd);
 int command_analy_flag(char a[5]);    //用来解析flag
 int Account_updatapassword_persistence(loginnode login,int fd);
 int Account_login_persistence(loginnode login,int fd);    //登录
@@ -129,7 +132,17 @@ static void handle_events(int epfd,struct epoll_event *events,int num,int listen
 		int fd = events[i].data.fd;
 
 		if((fd == listenfd) && (events[i].events & EPOLLIN))   listenfd_accept(epfd,fd);
-		else if(events[i].events & EPOLLIN)    do_read(epfd,fd,buf);
+		else if(events[i].events & EPOLLIN )
+		{
+			//printf( "events %d\n",events[i].events);
+			if(events[i].events & EPOLLRDHUP)
+			{
+				epoll_ctl(epfd,EPOLL_CTL_DEL,fd,NULL);
+				continue;
+			}
+			else    do_read(epfd,fd,buf);
+		}
+		else if(events[i].events & EPOLLRDHUP)    printf( "123\n");
 		else if(events[i].events & EPOLLOUT)   do_write(epfd,fd,buf);
 	}
 
@@ -153,6 +166,7 @@ int listenfd_accept(int epfd,int fd)
 	
 	ev.data.fd = clifd;
 	ev.events = EPOLLIN;
+	ev.events |= EPOLLRDHUP;
 	//向 fd 进行 add 操作 
 	epoll_ctl(epfd,EPOLL_CTL_ADD,clifd,&ev);
 	
@@ -170,6 +184,7 @@ static void do_read(int epfd,int fd,char *buf)
 	int i;           //sizeof(buf)   出错   因为 buf 是个指针,指针一次只有 8 个字节
 	int judge;
 	informationnode inf;
+
 	memset(buf,0,1024);
 	memset(&log,0,sizeof(loginnode));
 
@@ -177,7 +192,7 @@ static void do_read(int epfd,int fd,char *buf)
 	{
 		my_err("recv",__LINE__);
 		close(fd);
-	} 
+	}
 	while(1)
 	{   
 		if(ret != 1024)
@@ -189,7 +204,7 @@ static void do_read(int epfd,int fd,char *buf)
 		}   
 		else break;
 	}   
-	printf( "ret = %d\n",ret);
+	printf( "retqwe = %d\n",ret);
 	if(ret == 0)
 	{
 		printf("client exit\n");
@@ -211,20 +226,22 @@ static void do_read(int epfd,int fd,char *buf)
 			memcpy(&log,buf,sizeof(loginnode));
 			break;
 		case 5:
+		case 6:
 			memcpy(&inf,buf,sizeof(informationnode));
 			break;
 
 	}
 
-	printf( "flag = %d\n",log.flag);
-
+	printf( "infflag = %d\n",inf.flag);
+	printf( " judge = %d\n",judge);
 	switch(judge)
 	{
 		case 1: Account_login_persistence(log,fd);break;
 		case 2: Account_resgine_persistence(log,fd);break;
 		case 3: Account_updatapassword_persistence(log,fd);break;
 		case 4: Account_foundpassword_persistence(log,fd);break;
-		case 5: Modity_information(inf,fd);break;
+		case 5: Modity_information_persistence(inf,fd);break;
+		case 6: View_information_persistence(inf,fd);break;
 	}
 
 	memset(buf,0,sizeof(buf));
@@ -236,11 +253,11 @@ int Account_resgine_persistence(loginnode log,int fd)
 	char buf[1024];
 
 	int flag = 1;
-	char send_buf[1024];
 	printf( "注册\n");
 	char data[1000];
 	sprintf(data,"insert into login values('%d','%s','%s','%s','%s','%s')",NULL,log.account,log.password,log.name,log.phonenumber,log.friendname);
 	
+	printf("log.account = %s\n",log.account);
 	if(mysql_query(&mysql,data))
 	{
 		printf( "false\n");
@@ -272,7 +289,9 @@ int Account_login_persistence(loginnode log,int fd)    //登录
 		if(strcmp(log.account,row[0]) == 0 && strcmp(log.password,row[1]) == 0)  //在数据库里查找是否 有账号和密码
 		{
 			flag = 1;
-			memcpy(&log.id,row[2],sizeof(int));
+	//		printf( "id = %s\n",row[2]);
+			log.id = atoi(row[2]);
+	//		printf( "log.id = %d\n",log.id);
 			break;
 		}
 	}
@@ -356,7 +375,7 @@ int Account_foundpassword_persistence(loginnode log,int fd)
 static void do_write(int epfd,int fd,char *buf)
 {
 
-}
+}//default charset = utf8; 
 void my_err(const char * err_string,int line)
 {
 	fprintf(stderr,"line : %d ",line);
@@ -396,7 +415,7 @@ void send_data(int conn_fd,const char *string)
 	int ret;
 	if((ret = (send(conn_fd,string,1024,0))) < 0)   my_err("send",__LINE__);
 //	printf( "re3t = %d\n",ret);
-//	printf( "string = %d\n",strlen( string));
+//	printf( "string =default charset = utf8;  %d\n",strlen( string));
 }
 
 int command_analy_flag(char a[5])    //用来解析flag
@@ -405,7 +424,101 @@ int command_analy_flag(char a[5])    //用来解析flag
         memcpy(&flag,a,sizeof(int));
         return flag;
 }
-int Modity_information(informationnode inf,int fd)
+int Modity_information_persistence(informationnode inf,int fd)
 {
+	// inf.loginid 为 login 中的Id
+	//先 根据 ID 匹配将 login 中的name 修改
+	//在 将infor  中的数据进行修改
+	// 首先 判断 inf 表中 是否存在这个数据,若 不存在这直接插入 ,若存在则 进行更新
+	
+	printf( "id = %d\n",inf.id);
+
+	loginnode log;
+	char buf[1024];
+	char temp[1000];
+	int re = 0;
+        int flag = 0;
+        MYSQL_FIELD * field;
+        MYSQL_ROW row;
+        MYSQL_RES *result = NULL;
+	//memcpy(chstid,&inf.id,sizeof(int));
+
+	//将 login 中的 name 更新
+	sprintf(temp,"update login set name = '%s' where id = %d",inf.name,inf.id);
+	mysql_query(&mysql,temp);  //执行成功返回false  ,失败返回true
+        
+	mysql_query(&mysql,"select loginID from information ");
+	
+        result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+	if(result == NULL)   //如果这个表一个人也没有
+	{
+		printf( "111\n");
+		sprintf(temp,"insert into information values('%d','%s','%s','%s','%s','%s','%s','%d')",NULL,inf.name,inf.sex,inf.data,inf.address,inf.constellation,inf.email,inf.id);
+		mysql_query(&mysql,temp);  //执行成功返回false  ,失败返回true
+	}
+	else    //若 flag = 1,则 更新,否者 插入
+	{
+		while(row = mysql_fetch_row(result))
+		{
+			printf( "%s\t",row[0]);
+			if(inf.id == atoi(row[0]))  //在 inf 数据库里查找是否 有这个人
+			{
+				flag = 1;
+				break;
+			}
+		}
+		printf( "infor flag = %d\n",flag);
+		if(flag == 1)
+		{
+			sprintf(temp,"update information set name = '%s',sex = '%s',data = '%s',address = '%s',constellation = '%s',email = '%s' where loginID = %d",inf.name,inf.sex,inf.data,inf.address,inf.constellation,inf.email,inf.id);
+			mysql_query(&mysql,temp);  //执行成功返回false  ,失败返回true
+		}
+		else
+		{
+			sprintf(temp,"insert into information values('%d','%s','%s','%s','%s','%s','%s','%d')",NULL,inf.name,inf.sex,inf.data,inf.address,inf.constellation,inf.email,inf.id);
+			mysql_query(&mysql,temp);  //执行成功返回false  ,失败返回true
+		}
+	}
+	
+	inf.flag = 5;
+	inf.result = 1;
+        memset(buf,0,1024);    //初始化
+        memcpy(buf,&inf,sizeof(informationnode));    //将结构体的内容转为字符串
+        if((re = (send(fd,buf,1024,0))) < 0)  printf( "错误\n"); 	
+	
+	//更新的反返回值 只能是成功
+}
+
+int View_information_persistence(informationnode inf,int fd)
+{
+	char buf[1024];
+	char temp[1000];
+	int re = 0;
+        int flag = 0;
+        MYSQL_FIELD * field;
+        MYSQL_ROW row;
+        MYSQL_RES *result = NULL;
+	mysql_query(&mysql,"select loginID,name,sex,data,address,constellation,email from information ");
+	
+	//if(result == NULL) printf( "information 中 要找的信息为空\n");
+        result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+
+	while(row = mysql_fetch_row(result))
+	{
+		if(inf.id == atoi(row[0]))
+		{
+			strcpy(inf.name,row[1]);
+			strcpy(inf.sex,row[2]);
+			strcpy(inf.data,row[3]);
+			strcpy(inf.address,row[4]);
+			strcpy(inf.constellation,row[5]);
+			strcpy(inf.email,row[6]);
+		}
+	}
+
+	inf.result = 1;
+        memset(buf,0,1024);    //初始化
+        memcpy(buf,&inf,sizeof(informationnode));    //将结构体的内容转为字符串
+        if((re = (send(fd,buf,1024,0))) < 0)  printf( "错误\n"); 	
 
 }
