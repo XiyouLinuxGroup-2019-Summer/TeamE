@@ -268,7 +268,6 @@ static void do_read(int epfd,int fd,char *buf)
 
 	strncpy(anly,buf,sizeof(int));
 	judge = command_analy_flag(anly);
-	printf( "judge = %d\n",judge);
 	switch(judge)
 	{
 		case 1:
@@ -285,11 +284,10 @@ static void do_read(int epfd,int fd,char *buf)
 			memcpy(&offline,buf,sizeof(downonline));
 			break;
 		case 7:
+		case 8:
 			memcpy(&fid,buf,sizeof(friendnode));
 			break;
 	}
-
-	printf( "infflag = %d\n",inf.flag);
 	printf( " judge = %d\n",judge);
 	switch(judge)
 	{
@@ -528,7 +526,7 @@ int Modity_information_persistence(informationnode inf,int fd)
         result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
 	if(result == NULL)   //如果这个表一个人也没有
 	{
-		printf( "111\n");
+	//	printf( "111\n");
 		sprintf(temp,"insert into information values('%d','%s','%s','%s','%s','%s','%s','%d')",NULL,inf.name,inf.sex,inf.data,inf.address,inf.constellation,inf.email,inf.id);
 		mysql_query(&mysql,temp);  //执行成功返回false  ,失败返回true
 	}
@@ -611,25 +609,72 @@ int friend_add_send_persistence(friendnode fid,int fd)
 	char buf[1024];
 	int re = 0;
 	int flag = 0;
+	int line = 0;
+
+  /*      MYSQL_FIELD * field;
+        MYSQL_ROW row;
+        MYSQL_RES *result = NULL;
+        
+	mysql_query(&mysql,"select id,online,account from login ");	
+        result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+	
+	if(NULL == result)   printf( "619 line \n");
+	while(row = mysql_fetch_row(result))
+	{
+		if(strcmp(fid.acceptaccount,row[2]) == 0)
+		{
+			strcpy(fid.acceptaccount,row[2]);
+			fid.acceptid = atoi(row[0]);
+			line = atoi(row[1]);
+			break;
+		}
+	}
+
+*/
+
+
 	online_node_t *curpos;
 	List_ForEach(head,curpos)
 	{
 		if(strcmp(curpos->account,fid.acceptaccount) == 0)
 		{
-			flag == 1;
+			flag = 1;
 			fid.acceptfd = curpos->fd;
 			fid.acceptid = curpos->id;
 			break;
 		}
 	}
+	
+	//先 根据账号 在数据库 里面找到 接受者 的id; 和是否在线
+	
+	
         fid.flag = 7;
-	memset(buf,0,1024);    //初始化
-        memcpy(buf,&fid,sizeof(friendnode));    //将结构体的内容转为字符串
-        if((re = (send(fid.acceptfd,buf,1024,0))) < 0)  printf( "错误\n"); 	
+	if(flag == 1)
+	{
+		memset(buf,0,1024);    //初始化
+       	        memcpy(buf,&fid,sizeof(friendnode));    //将结构体的内容转为字符串
+       		if((re = (send(fid.acceptfd,buf,1024,0))) < 0)  printf( "错误\n"); 	
+	}
+//	else  (不在线)   保存在本地
+	{
+
+	}
+
+
+
 
 }
 int friend_add_deal_persistence(friendnode fid)
 {
-	if(fid.result == 1)   printf( "账号 为 %s 接受 %s 的好友请求\n",fid.acceptaccount,fid.sendaccount);
-	else   printf( "账号 为 %s 不接受 %s 的好友请求\n",fid.acceptaccount,fid.sendaccount);
+
+
+	char temp[1000];
+
+	if(fid.result == 1)
+	{
+		sprintf(temp,"insert into friend values('%d','%d')",fid.sendid,fid.acceptid);
+		mysql_query(&mysql,temp);  //执行成功返回false  ,失败返回true
+	}
+
+
 }

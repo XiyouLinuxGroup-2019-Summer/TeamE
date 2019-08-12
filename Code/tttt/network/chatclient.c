@@ -10,6 +10,10 @@
 #include"my_recv.h"
 #include<pthread.h>
 #include<stdlib.h>
+#include<sys/types.h>
+#include<fcntl.h>
+#include<sys/stat.h>
+
 
 #define MSGSIZE 512
 #define BUFFSIZE 1024
@@ -89,7 +93,7 @@ informationnode inf;  //创建一个存储用户信息的结构体
 pthread_mutex_t mutex;  //创建一把锁
 pthread_cond_t cond;    //创建一个信号
 
-int friend_add_send_UI(int fd);
+int Friend_add_send_UI(int fd);
 int offonline(int fd);   //下线通知
 int Friend_management_UI(int fd);   //好友管理主界面
 int View_information_UI(int fd);    //查看用户信息
@@ -105,8 +109,10 @@ int Account_regist_UI(int conn_fd);    //注册
 int Account_updatapassword_UI(int conn_fd);  //修改密码
 int Account_foundpassword_UI(int conn_fd);   //找回密码
 
+void Find_freind(fd);   //套接字 描述符
 int *main_recv(void *arg);  //新开线程,负责收消息
 
+int write_file(friendnode fid);
 
 int main(int argc,char **argv)
 {
@@ -483,7 +489,9 @@ int *main_recv(void *arg)
 				}
 				break;
 			case 7:
-				friend_add_accept_UI(fid,fd);
+		//		printf("好友申请通知\n");
+				write_file(fid);
+				//friend_add_accept_UI(fid,fd);
 				break;
 			case 8:
 		//		friend_add_accept_UI(fid,fd);
@@ -518,7 +526,8 @@ int major_UI(int fd)
 		printf( "[4]  传送文件\n");
 		printf( "[5]  修改信息\n");
 		printf( "[6]  查看用户信息\n");
-		printf( "[7]  退出\n");
+		printf( "[7]  查看消息通知\n");
+		printf( "[8]  退出\n");
 	
 		printf( "请输入选项 :");
 		scanf( "%d",&command);
@@ -546,12 +555,13 @@ int major_UI(int fd)
 				View_information_UI(fd);
 				break;
 			case 7:
+				Find_freind(fd);
 				break;
 			default :
 				printf( "选项错误\n");
 		}	
 		printf( "command = %d\n",command);
-	}while(command != 7);
+	}while(command != 8);
 }
 int Modity_information_UI(int fd)
 {
@@ -677,7 +687,7 @@ int offonline(int fd)
 }
 
 
-int friend_add_accept_UI(friendnode fid,int fd)
+/*int friend_add_accept_UI(friendnode fid,int fd)
 {
 	char buf[1024];
 	int re;
@@ -694,4 +704,116 @@ int friend_add_accept_UI(friendnode fid,int fd)
         memcpy(buf,&fid,sizeof(friendnode));    //将结构体的内容转为字符串
         if((re = (send(fd,buf,1024,0))) < 0)  printf( "错误\n");
 	
+}
+*/
+int write_file(friendnode fid)
+{
+	int fd;
+	        //操作文件不正确 会 输出乱码
+	if(!(fd = open("friend.txt",O_CREAT | O_WRONLY,0777)))
+	{
+		printf( "文件打开失败\n");
+	}
+	
+	//写数据
+/*	int num = write(fd,&fid,sizeof(friendnode));
+	fprintf(stderr,"line%d \n",__LINE__);
+	perror("write");
+	printf( "num = %d\n",num);*/
+	if(write(fd,&fid,sizeof(friendnode)) != sizeof(friendnode))
+	{
+		printf( "写入失败\n");
+	}
+
+	close(fd);
+
+
+}
+
+void Find_freind(int serverfd)
+{
+	int num = 0;
+	char ch;
+	int re;
+	char buf[1024];
+	friendnode fid;
+	int fd;
+	if((fd = open("friend.txt",O_CREAT | O_APPEND,S_IRUSR | S_IWUSR)) == -1)
+	{
+		printf( "文件打开失败\n");
+	}
+
+	int sum = read(fd,&fid,sizeof(friendnode));
+//	if(sum == 0)  printf( "没有通知\n");
+//	else
+	
+	while(sum != 0)
+	{
+		printf( "是否还想继续阅读 好友请求\n");
+		printf("Y / N:");
+		scanf( "%c",&ch);
+		getchar();
+		if(ch == 'N') break;
+
+		char ch;
+		printf( "账号 为 %s 接受 %s 的好友请求\n",fid.acceptaccount,fid.sendaccount);
+		printf( "是否接受?\n");
+		printf( "接受 Y /拒绝 N\n");
+		scanf("%c",&ch);
+		getchar();
+		if(ch == 'Y')   fid.result = 1;
+		else  fid.result = 0;
+		fid.flag = 8;
+		memset(buf,0,1024);    //初始化                                                   
+	        memcpy(buf,&fid,sizeof(friendnode));    //将结构体的内容转为字符串
+	        if((re = (send(serverfd,buf,1024,0))) < 0)  printf( "错误\n");
+		num++;     //记录已读 的几条消息  一会删除的 前 num 条消息
+		//	fid.result = 1;   //将本地的 reslut 改为1 代表已经 读 过这条消息,
+
+		sum = read(fd,&fid,sizeof(friendnode));
+	}
+
+	if(sum == 0)   printf( "无通知\n");
+	close(fd);
+	
+	//删除 已读 数据
+	if(rename("friend.txt","friend.txt_temp") < 0)   printf( "776 错误\n");
+
+	FILE *fpsour,*fptarg;
+
+	fpsour = fopen("friend.txt_temp","rb");
+	if(NULL == fpsour)   printf( "不能打开文件 781\n");
+
+	fptarg = fopen("friend.txt","wb");
+	if(NULL == fptarg)    printf( "不能打开文件  784\n");
+	
+	friendnode temp;
+
+	while(!feof(fpsour))
+	{
+		if(fread(&temp,sizeof(friendnode),1,fpsour))
+		{
+			if(num)  
+			{
+				num--;
+				continue;
+			}
+			else
+			{
+				fwrite(&temp,sizeof(friendnode),1,fptarg);
+			}
+		}
+	}
+
+	fclose(fptarg);
+	fclose(fpsour);
+	
+	remove("friend.txt_temp");
+	printf( "judgeee = %d\n",fid.flag);
+	printf( "restt = %d\n",fid.result);
+		
+}
+int Friend_del_UI()
+{
+
 }
