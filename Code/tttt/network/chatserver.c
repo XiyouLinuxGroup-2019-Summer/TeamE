@@ -93,6 +93,7 @@ pthread_mutex_t mutex;
 MYSQL mysql;
 MYSQL_RES *result;
 
+int friend_del_persistence(friendnode fid,int fd);
 int friend_add_deal_persistence(friendnode fid);
 int friend_add_send_persistence(friendnode fid,int fd);
 int offline_persistence(downonline offline);   //下线通知
@@ -285,6 +286,7 @@ static void do_read(int epfd,int fd,char *buf)
 			break;
 		case 7:
 		case 8:
+		case 9:
 			memcpy(&fid,buf,sizeof(friendnode));
 			break;
 	}
@@ -300,6 +302,8 @@ static void do_read(int epfd,int fd,char *buf)
 		case 6: View_information_persistence(inf,fd);break;
 		case 7:friend_add_send_persistence(fid,fd);break;
 		case 8:friend_add_deal_persistence(fid);break;
+		case 9:friend_del_persistence(fid,fd);break;
+
 	}
 
 	memset(buf,0,sizeof(buf));
@@ -677,4 +681,41 @@ int friend_add_deal_persistence(friendnode fid)
 	}
 
 
+}
+int friend_del_persistence(friendnode fid,int fd)
+{	
+	char buf[1024];
+	char temp[1000];
+	int re = 0;
+        int flag = 0;
+        MYSQL_FIELD * field;
+        MYSQL_ROW row;
+        MYSQL_RES *result = NULL;
+	int id2;
+	mysql_query(&mysql,"select account,id from login ");
+        result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+	while(row = mysql_fetch_row(result))
+	{
+		if(strcmp(row[0],fid.acceptaccount) == 0)
+		{
+			id2 = atoi(row[1]);
+			flag = 1;
+		}
+	}
+	printf( "flag = %d\n",flag);
+	printf( "id2 = %d   id1 = %d\n",id2,fid.sendid);
+
+	if(flag == 0)  return 0;
+	//mysql_query(&mysql,"select *from friend");
+	
+	//if(result == NULL) printf( "information 中 要找的信息为空\n");
+       // result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+
+	sprintf(temp,"delete from friend where (friend1 = '%d' && friend2 = '%d' || friend1 = '%d' && friend2 = '%d')",fid.sendid,id2,id2,fid.sendid);
+	if(mysql_query(&mysql,temp))
+	{
+		printf( "false\n");
+	}
+
+	return 0;
 }

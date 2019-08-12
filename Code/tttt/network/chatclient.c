@@ -88,11 +88,12 @@ typedef struct
 	char message[MGSZIE];
 }mgnode;
 
-informationnode inf;  //创建一个存储用户信息的结构体
+informationnode inf;  //创建一个存储用户信息的结构体  一旦登录 就 保存了 本用户的 id 和账号
 
 pthread_mutex_t mutex;  //创建一把锁
 pthread_cond_t cond;    //创建一个信号
 
+int Friend_all_view(conn_fd);
 int Friend_add_send_UI(int fd);
 int offonline(int fd);   //下线通知
 int Friend_management_UI(int fd);   //好友管理主界面
@@ -515,7 +516,7 @@ int command_analy_flag(char a[5])    //用来解析flag
 	return flag;
 }
 
-int major_UI(int fd)
+int major_UI(int conn_fd)
 {
 	int command;
 	do
@@ -537,7 +538,7 @@ int major_UI(int fd)
 		{
 	
 			case 1:
-				Friend_management_UI(fd);
+				Friend_management_UI(conn_fd);
 				break;
 			case 2:
 	//			Chat_communication_UI();
@@ -549,13 +550,13 @@ int major_UI(int fd)
 	//			File_transfer_UI();
 				break;
 			case 5:
-				Modity_information_UI(fd);
+				Modity_information_UI(conn_fd);
 				break;
 			case 6:
-				View_information_UI(fd);
+				View_information_UI(conn_fd);
 				break;
 			case 7:
-				Find_freind(fd);
+				Find_freind(conn_fd);
 				break;
 			default :
 				printf( "选项错误\n");
@@ -617,15 +618,16 @@ int View_information_UI(int fd)
 	
 	 getchar();
 }
-int Friend_management_UI(int fd)
+int Friend_management_UI(int conn_fd)
 {
 	int command;
 	do
 	{
 		printf( "[1]  添加好友\n");
 		printf( "[2]  删除好友\n");
-		printf( "[3]  查看好友列表\n");
-		printf( "[4]  退出\n");
+		printf( "[3]  查看所有好友\n")
+		printf( "[4]  查看所有在线好友\n");
+		printf( "[5]  退出\n");
 		printf( "请输入选项:");
 
 		scanf( "%d",&command);
@@ -634,24 +636,25 @@ int Friend_management_UI(int fd)
 		switch(command)
 		{
 			case 1:
-				Friend_add_send_UI(fd);
+				Friend_add_send_UI(conn_fd);
 				break;
 			case 2:
-				//Friend_del_UI();
+				Friend_del_UI(conn_fd);
 				//break;
 			case 3:
+				//Friend_all_view(conn_fd);
 				//Friend_view_UI();
 				//break;
 			default :
 				printf( "选项错误\n");
 		}
-	}while(command != 4);
+	}while(command != 5);
 
 	return 0;
 
 }
 
-int Friend_add_send_UI(int fd)
+int Friend_add_send_UI(int conn_fd)
 {
 	int re;
 	char buf[1024];
@@ -662,10 +665,10 @@ int Friend_add_send_UI(int fd)
 	gets(fid.acceptaccount);
 	strcpy(fid.sendaccount,inf.account);
 	fid.sendid = inf.id;   //发送方的id
-	fid.sendfd = fd;       //发送方的套接字
+	fid.sendfd = conn_fd;       //发送方的套接字
 	memset(buf,0,1024);    //初始化                                                   
         memcpy(buf,&fid,sizeof(friendnode));    //将结构体的内容转为字符串
-        if((re = (send(fd,buf,1024,0))) < 0)  printf( "错误\n");
+        if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
 
 }
 
@@ -813,7 +816,28 @@ void Find_freind(int serverfd)
 	printf( "restt = %d\n",fid.result);
 		
 }
-int Friend_del_UI()
+int Friend_del_UI(int conn_fd)
+{
+	int re;
+	char buf[1024];
+
+	friendnode fid;
+	printf( "请输入要删除好友的 账号:");
+	gets(fid.acceptaccount);
+
+	strcpy(fid.sendaccount,inf.account);   // 将本用户的 账号保存
+	fid.sendid = inf.id;
+
+	fid.flag = 9;
+	memset(buf,0,1024);    //初始化 
+	memcpy(buf,&fid,sizeof(friendnode));    //将结构体的内容转为字符串
+       
+	if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
+
+	return 0;
+}
+
+int Friend_all_view(conn_fd)
 {
 
 }
