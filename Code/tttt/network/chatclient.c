@@ -56,6 +56,7 @@ typedef struct
 	char address[SIZE];
 	char constellation[SIZE];
 	char email[SIZE];
+	int  line;
 }informationnode;
 
 typedef struct    //添加好友
@@ -93,7 +94,9 @@ informationnode inf;  //创建一个存储用户信息的结构体  一旦登录
 pthread_mutex_t mutex;  //创建一把锁
 pthread_cond_t cond;    //创建一个信号
 
-int Friend_all_view(conn_fd);
+int Friend_view_UI(int conn_fd);
+int Friend_del_UI(int conn_fd);
+int Friend_all_view(int conn_fd);
 int Friend_add_send_UI(int fd);
 int offonline(int fd);   //下线通知
 int Friend_management_UI(int fd);   //好友管理主界面
@@ -110,7 +113,7 @@ int Account_regist_UI(int conn_fd);    //注册
 int Account_updatapassword_UI(int conn_fd);  //修改密码
 int Account_foundpassword_UI(int conn_fd);   //找回密码
 
-void Find_freind(fd);   //套接字 描述符
+void Find_freind(int fd);   //套接字 描述符
 int *main_recv(void *arg);  //新开线程,负责收消息
 
 int write_file(friendnode fid);
@@ -400,6 +403,8 @@ int *main_recv(void *arg)
 				break;
 			case 5:
 			case 6:
+			case 9:   //查看好友信息
+			case 10:
 				//memset(&log,0,sizeof(loginnode));
         	 		memcpy(&inf,recv_buf,sizeof(informationnode));    //将结构体的内容转为字符串
 				break;
@@ -497,7 +502,14 @@ int *main_recv(void *arg)
 			case 8:
 		//		friend_add_accept_UI(fid,fd);
 				break;
-
+			case 9:
+				printf("%s     %s     ",inf.account,inf.name);
+				if(inf.line)   printf( "是\n");
+				else           printf( "否\n");
+				break;
+			case 10:
+				printf("%s     %s     \n",inf.account,inf.name);
+				break;
 		}
 
                 pthread_mutex_unlock(&mutex);
@@ -625,7 +637,7 @@ int Friend_management_UI(int conn_fd)
 	{
 		printf( "[1]  添加好友\n");
 		printf( "[2]  删除好友\n");
-		printf( "[3]  查看所有好友\n")
+		printf( "[3]  查看所有好友\n");
 		printf( "[4]  查看所有在线好友\n");
 		printf( "[5]  退出\n");
 		printf( "请输入选项:");
@@ -640,11 +652,15 @@ int Friend_management_UI(int conn_fd)
 				break;
 			case 2:
 				Friend_del_UI(conn_fd);
-				//break;
+				break;
 			case 3:
-				//Friend_all_view(conn_fd);
-				//Friend_view_UI();
-				//break;
+				Friend_all_view(conn_fd);   //查看所有好友
+				usleep(1000);
+				break;
+			case 4:
+				Friend_view_UI(conn_fd);  //查看所有在线好友
+				usleep(1000);
+				break;
 			default :
 				printf( "选项错误\n");
 		}
@@ -837,7 +853,36 @@ int Friend_del_UI(int conn_fd)
 	return 0;
 }
 
-int Friend_all_view(conn_fd)
+int Friend_all_view( int conn_fd)
 {
+	int re;
+	char buf[1024];
 
+	printf( "******** 好友列表 *********\n");
+	printf( "账号      昵称        是否在线\n");
+	//fid.flag = 10;
+	inf.flag = 10;
+	memset(buf,0,1024);    //初始化 
+	memcpy(buf,&inf,sizeof(informationnode));    //将结构体的内容转为字符串
+
+	if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
+
+
+}
+
+
+int Friend_view_UI(int conn_fd)
+{
+	int re;
+	char buf[1024];
+
+	printf( "******** 好友列表 *********\n");
+	printf( "账号      昵称     \n");
+
+	inf.flag = 11;
+	memset(buf,0,1024);    //初始化 
+	memcpy(buf,&inf,sizeof(informationnode));    //将结构体的内容转为字符串
+
+	if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
+	
 }

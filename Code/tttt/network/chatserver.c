@@ -79,6 +79,7 @@ typedef struct
         char address[SIZE];
         char constellation[SIZE];
         char email[SIZE];
+	int line;
 }informationnode;  //完善用户信息 结构体
 
 typedef struct 
@@ -92,7 +93,8 @@ online_list_t head;
 pthread_mutex_t mutex;
 MYSQL mysql;
 MYSQL_RES *result;
-
+int Friend_view_persistence(informationnode inf,int conn_fd);
+int Friend_all_view_persistence(informationnode inf,int conn_fd);
 int friend_del_persistence(friendnode fid,int fd);
 int friend_add_deal_persistence(friendnode fid);
 int friend_add_send_persistence(friendnode fid,int fd);
@@ -279,6 +281,8 @@ static void do_read(int epfd,int fd,char *buf)
 			break;
 		case 5:
 		case 6:
+		case 10:
+		case 11:
 			memcpy(&inf,buf,sizeof(informationnode));
 			break;
 		case -1:
@@ -303,7 +307,8 @@ static void do_read(int epfd,int fd,char *buf)
 		case 7:friend_add_send_persistence(fid,fd);break;
 		case 8:friend_add_deal_persistence(fid);break;
 		case 9:friend_del_persistence(fid,fd);break;
-
+		case 10:Friend_all_view_persistence(inf,fd);break;
+		case 11:Friend_view_persistence(inf,fd);break;
 	}
 
 	memset(buf,0,sizeof(buf));
@@ -718,4 +723,119 @@ int friend_del_persistence(friendnode fid,int fd)
 	}
 
 	return 0;
+}
+int Friend_all_view_persistence(informationnode inf,int conn_fd)
+{
+	char temp[1024];
+	int re = 0;
+	char data[1024];
+	char buf[1024];
+	
+        MYSQL_FIELD * field;
+        MYSQL_ROW row;
+	MYSQL_ROW row1;
+        MYSQL_RES *result_id = NULL;
+        MYSQL_RES *result_account = NULL;
+	mysql_query(&mysql,"select friend1,friend2 from friend");
+        result_id = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+
+
+	while(row = mysql_fetch_row(result_id))
+	{
+		memset(data,0,sizeof(data));
+
+		if(atoi(row[0]) == inf.id)
+		{
+			inf.flag = 9;
+			sprintf(data,"select account,name,online from login where id = %d",atoi(row[1]));
+			mysql_query(&mysql,data);
+			result_account = mysql_store_result(&mysql);
+			row1 = mysql_fetch_row(result_account);
+			
+			strcpy(inf.account,row1[0]);
+			strcpy(inf.name,row1[1]);
+			inf.line = atoi(row1[2]);
+       			
+			memset(buf,0,1024);    //初始化
+      	 		memcpy(buf,&inf,sizeof(informationnode));    //将结构体的内容转为字符串
+			if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n"); 					
+		}
+		else if(atoi(row[1]) == inf.id)
+		{
+			sprintf(data,"select account,name,online from login where id = %d",atoi(row[0]));
+			mysql_query(&mysql,data);
+			result_account = mysql_store_result(&mysql);
+
+			row1 = mysql_fetch_row(result_account);
+		
+			strcpy(inf.account,row1[0]);
+			strcpy(inf.name,row1[1]);
+			inf.line = atoi(row1[2]);
+       			
+			memset(buf,0,1024);    //初始化
+      	 		memcpy(buf,&inf,sizeof(informationnode));    //将结构体的内容转为字符串
+			if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n"); 					
+		}
+	}
+}
+int Friend_view_persistence(informationnode inf,int conn_fd)
+{
+	char temp[1024];
+	int re = 0;
+	char data[1024];
+	char buf[1024];
+	
+        MYSQL_FIELD * field;
+        MYSQL_ROW row;
+	MYSQL_ROW row1;
+        MYSQL_RES *result_id = NULL;
+        MYSQL_RES *result_account = NULL;
+	mysql_query(&mysql,"select friend1,friend2 from friend");
+        result_id = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+
+
+	while(row = mysql_fetch_row(result_id))
+	{
+		memset(data,0,sizeof(data));
+
+		if(atoi(row[0]) == inf.id)
+		{
+			inf.flag = 10;
+			sprintf(data,"select account,name,online from login where id = %d",atoi(row[1]));
+			mysql_query(&mysql,data);
+			result_account = mysql_store_result(&mysql);
+			row1 = mysql_fetch_row(result_account);
+			
+			strcpy(inf.account,row1[0]);
+			strcpy(inf.name,row1[1]);
+			inf.line = atoi(row1[2]);
+       			if(inf.line)
+			{
+				memset(buf,0,1024);    //初始化
+      	 			memcpy(buf,&inf,sizeof(informationnode));    //将结构体的内容转为字符串
+				if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n"); 					
+				printf( "re = %d\n",re);
+			}
+
+		}
+		else if(atoi(row[1]) == inf.id)
+		{
+			sprintf(data,"select account,name,online from login where id = %d",atoi(row[0]));
+			mysql_query(&mysql,data);
+			result_account = mysql_store_result(&mysql);
+
+			row1 = mysql_fetch_row(result_account);
+		
+			strcpy(inf.account,row1[0]);
+			strcpy(inf.name,row1[1]);
+			inf.line = atoi(row1[2]);
+       			if(inf.line)	
+			{
+			
+				memset(buf,0,1024);    //初始化
+      	 			memcpy(buf,&inf,sizeof(informationnode));    //将结构体的内容转为字符串
+				if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n"); 					
+			}
+		}
+	}
 }
