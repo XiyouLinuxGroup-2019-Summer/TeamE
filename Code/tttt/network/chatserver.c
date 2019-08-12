@@ -82,6 +82,23 @@ typedef struct
 	int line;
 }informationnode;  //完善用户信息 结构体
 
+typedef struct     //聊天结构体    
+{ 
+        int flag;
+        char sendaccount[SIZE];   //存放发送方的账号
+        char acceptaccount[SIZE];    //存放接受方的账号
+
+        char sendname[SIZE];   //存放发送放 的昵称
+        char acceptname[SIZE];  //存放接受者的昵称
+        
+	int sendid;    //存放发送方用户id
+        int acceptid;   //存放接收方 id
+	int acceptfd;   //存放接受者的 套接字
+	int sendfd;    //存放发送者的套接字
+        char msg[MGSIZE];     //消息的最大长度
+}msgnode;
+
+
 typedef struct 
 {
         int flag ;
@@ -93,11 +110,13 @@ online_list_t head;
 pthread_mutex_t mutex;
 MYSQL mysql;
 MYSQL_RES *result;
-int Friend_view_persistence(informationnode inf,int conn_fd);
-int Friend_all_view_persistence(informationnode inf,int conn_fd);
-int friend_del_persistence(friendnode fid,int fd);
-int friend_add_deal_persistence(friendnode fid);
-int friend_add_send_persistence(friendnode fid,int fd);
+
+int Pravite_chat_send_persistence(msgnode msg,int fd);  //消息处理
+int Friend_view_persistence(informationnode inf,int conn_fd); //查看在线好友
+int Friend_all_view_persistence(informationnode inf,int conn_fd);  //查看所有好友
+int friend_del_persistence(friendnode fid,int fd); //删除好友
+int friend_add_deal_persistence(friendnode fid); //处理 添加好友函数
+int friend_add_send_persistence(friendnode fid,int fd);  //发送添加好友
 int offline_persistence(downonline offline);   //下线通知
 int View_information_persistence(informationnode inf,int fd); //查看用户信息
 int Modity_information_persistence(informationnode inf,int fd);   //修改用户信息
@@ -227,6 +246,7 @@ int listenfd_accept(int epfd,int fd)
 
 static void do_read(int epfd,int fd,char *buf)
 {
+	msgnode msg;
 	char anly[5];
 	friendnode fid;
 	downonline offline;
@@ -293,6 +313,9 @@ static void do_read(int epfd,int fd,char *buf)
 		case 9:
 			memcpy(&fid,buf,sizeof(friendnode));
 			break;
+		case 12:
+			memcpy(&msg,buf,sizeof(msgnode));
+			break;
 	}
 	printf( " judge = %d\n",judge);
 	switch(judge)
@@ -309,6 +332,7 @@ static void do_read(int epfd,int fd,char *buf)
 		case 9:friend_del_persistence(fid,fd);break;
 		case 10:Friend_all_view_persistence(inf,fd);break;
 		case 11:Friend_view_persistence(inf,fd);break;
+		case 12:Pravite_chat_send_persistence(msg,fd);break;
 	}
 
 	memset(buf,0,sizeof(buf));
@@ -640,19 +664,6 @@ int friend_add_send_persistence(friendnode fid,int fd)
 	}
 
 */
-
-
-	online_node_t *curpos;
-	List_ForEach(head,curpos)
-	{
-		if(strcmp(curpos->account,fid.acceptaccount) == 0)
-		{
-			flag = 1;
-			fid.acceptfd = curpos->fd;
-			fid.acceptid = curpos->id;
-			break;
-		}
-	}
 	
 	//先 根据账号 在数据库 里面找到 接受者 的id; 和是否在线
 	
@@ -664,6 +675,19 @@ int friend_add_send_persistence(friendnode fid,int fd)
        	        memcpy(buf,&fid,sizeof(friendnode));    //将结构体的内容转为字符串
        		if((re = (send(fid.acceptfd,buf,1024,0))) < 0)  printf( "错误\n"); 	
 	}
+
+        online_node_t *curpos;
+
+        List_ForEach(head,curpos)
+        {
+                if(strcmp(curpos->account,fid.acceptaccount) == 0)
+                {
+                        flag = 1;
+                        fid.acceptfd = curpos->fd;
+                        fid.acceptid = curpos->id;
+                        break;
+                }
+        }
 //	else  (不在线)   保存在本地
 	{
 
@@ -690,7 +714,9 @@ int friend_add_deal_persistence(friendnode fid)
 int friend_del_persistence(friendnode fid,int fd)
 {	
 	char buf[1024];
-	char temp[1000];
+	char temp[11024];
+	char data[1024];
+
 	int re = 0;
         int flag = 0;
         MYSQL_FIELD * field;
@@ -838,4 +864,63 @@ int Friend_view_persistence(informationnode inf,int conn_fd)
 			}
 		}
 	}
+}
+int Pravite_chat_send_persistence(msgnode msg,int conn_fd)
+{
+
+	char buf[1024];
+	char data[1024];
+	
+	int  re;
+	int flag = 0;
+
+        online_node_t *curpos;
+
+        List_ForEach(head,curpos)
+        {
+                if(strcmp(curpos->account,msg.acceptaccount) == 0)
+                {
+                        flag = 1;
+                        msg.acceptfd = curpos->fd;
+                        msg.acceptid = curpos->id;
+                        break;
+                }
+        }
+	if(flag == 0)
+	{
+		//发送对方不在线, 给发送者
+	}
+	else
+	{
+		// 在数据库 中 通过id 找到 name
+    		MYSQL_FIELD * field;
+    	   	MYSQL_ROW row;
+      	 	MYSQL_RES *result = NULL;
+
+		sprintf(data,"select name from login where id = %d",msg.sendid);	
+		mysql_query(&mysql,data);
+		result = mysql_store_result(&mysql);
+		row = mysql_fetch_row(result);
+		strcpy(msg.sendname,row[0]);
+		memset(data,0,sizeof(data));
+
+		sprintf(data,"select name from login where id = %d",msg.acceptid);
+		mysql_query(&mysql,data);
+		result = NULL;
+		result = mysql_store_result(&mysql);
+		row = mysql_fetch_row(result);
+		strcpy(msg.acceptname,row[0]);
+
+
+
+		// 在数据库通过 id 找到昵称
+
+		//将消息保存下来
+		
+		//将消息发送给接受者
+		memset(buf,0,1024);    //初始化
+      	 	memcpy(buf,&msg,sizeof(msgnode));    //将结构体的内容转为字符串
+		if((re = (send(msg.acceptfd,buf,1024,0))) < 0)  printf( "错误\n");
+	}
+
 }
