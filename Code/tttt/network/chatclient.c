@@ -89,12 +89,32 @@ typedef struct     //聊天结构体
 	char msg[MSGSIZE];     //消息的最大长度
 }msgnode;
 
+typedef struct 
+{
+	int  flag;
+	int  id;  //申请人的 id
+	int  group_id;   //群的id
+	char user_account[SIZE];  //申请人的账号
+	char user_name[SIZE];     //申请人的昵称
+	char group_name[SIZE];
+	char group_account[SIZE];
+	int  result;
+}groupnode;
 
+
+int Flag;    //判断接收到的信息  的flag
+char chat[1024];
 informationnode inf;  //创建一个存储用户信息的结构体  一旦登录 就 保存了 本用户的 id 和账号
 
 pthread_mutex_t mutex;  //创建一把锁
 pthread_cond_t cond;    //创建一个信号
 
+int Setup_administrator(int conn_fd);  //设置管理员
+int join_group(int conn_fd);    //加入群
+int deal_group(int conn_fd);   //处理入群申请
+int write_file_group(groupnode grp); //  将入群申请写入文件中
+int create_group(int conn_fd);     // 创建群
+int Group_management_UI(int conn_fd);// 群管理
 int Private_chat_accept(msgnode msg);//私聊处理
 int Private_chat_send(int conn_fd);  //私聊
 int Chat_communication_UI(int conn_fd); //聊天
@@ -108,9 +128,7 @@ int Friend_management_UI(int fd);   //好友管理主界面
 int View_information_UI(int fd);    //查看用户信息
 int Modity_information_UI(int fd);   //修改用户信息
 int major_UI(int fd);    //登录有主界面
-char chat[1024];
 //void my_err(const char * err_string,int line);
-int Flag;    //判断接收到的信息  的flag
 int command_analy_flag(char a[5]);   //分析命令
 int login_connect(int conn_fd);     //登录主界面
 int Account_login_UI(int conn_fd);   //登录
@@ -121,7 +139,7 @@ int Account_foundpassword_UI(int conn_fd);   //找回密码
 void Find_freind(int fd);   //套接字 描述符
 int *main_recv(void *arg);  //新开线程,负责收消息
 
-int write_file(friendnode fid);
+int write_file_friend(friendnode fid);   //将好友申请写入文件中
 
 int main(int argc,char **argv)
 {
@@ -362,6 +380,7 @@ int *main_recv(void *arg)
 	msgnode msg;
 	loginnode log;
 	friendnode fid;
+	groupnode grp;
 	char recv_buf[BUFFSIZE];
 	int  fd = (int)arg;   //转化 fd
 	char *p = recv_buf;   //用来接受信息
@@ -420,6 +439,9 @@ int *main_recv(void *arg)
 				break;
 			case 11:
 				memcpy(&msg,recv_buf,sizeof(msgnode));
+				break;
+			case 12:
+				memcpy(&grp,recv_buf,sizeof(groupnode));
 				break;
 		}
 		printf( "judge = %d\n",judge);
@@ -505,7 +527,7 @@ int *main_recv(void *arg)
 				break;
 			case 7:
 		//		printf("好友申请通知\n");
-				write_file(fid);
+				write_file_friend(fid);
 				//friend_add_accept_UI(fid,fd);
 				break;
 			case 8:
@@ -521,6 +543,10 @@ int *main_recv(void *arg)
 				break;
 			case 11:
 				Private_chat_accept(msg);
+				break;
+			case 12:
+				write_file_group(grp);
+			//	deal_group(grp,fd);
 				break;
 
 		}
@@ -569,7 +595,7 @@ int major_UI(int conn_fd)
 				Chat_communication_UI(conn_fd);
 				break;
 			case 3:
-	//			Group_management_UI();
+				Group_management_UI(conn_fd);
 				break;
 			case 4:
 	//			File_transfer_UI();
@@ -738,7 +764,7 @@ int offonline(int fd)
 	
 }
 */
-int write_file(friendnode fid)
+int write_file_friend(friendnode fid)
 {
 	int fd;
 	        //操作文件不正确 会 输出乱码
@@ -746,7 +772,6 @@ int write_file(friendnode fid)
 	{
 		printf( "文件打开失败\n");
 	}
-	
 	//写数据
 /*	int num = write(fd,&fid,sizeof(friendnode));
 	fprintf(stderr,"line%d \n",__LINE__);
@@ -762,7 +787,7 @@ int write_file(friendnode fid)
 
 }
 
-void Find_freind(int serverfd)
+void Find_freind(int conn_fd)
 {
 	int num = 0;
 	char ch;
@@ -798,7 +823,7 @@ void Find_freind(int serverfd)
 		fid.flag = 8;
 		memset(buf,0,1024);    //初始化                                                   
 	        memcpy(buf,&fid,sizeof(friendnode));    //将结构体的内容转为字符串
-	        if((re = (send(serverfd,buf,1024,0))) < 0)  printf( "错误\n");
+	        if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
 		num++;     //记录已读 的几条消息  一会删除的 前 num 条消息
 		//	fid.result = 1;   //将本地的 reslut 改为1 代表已经 读 过这条消息,
 
@@ -994,5 +1019,218 @@ int block_message(int conn_fd)
 	memcpy(buf,&msg,sizeof(msgnode));    //将结构体的内容转为字符串		
 	if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
 
+
+}
+
+int Group_management_UI(int conn_fd)
+{
+	int command;
+
+	do
+	{
+		printf( "[1]   创建群\n");
+		printf( "[2]   加群\n");
+		printf( "[3]   退群\n");
+		printf( "[4]   查看已加群\n");
+		printf( "[5]   查看群成员\n");
+		printf( "[6]   解散群\n");
+		printf( "[7]   设置管理员\n");
+		printf( "[8]   踢人\n");
+		printf( "[9]   查看群申请\n");
+		printf( "[10]  退出\n");
+		printf( "请输入选项:\n");
+		scanf( "%d",&command);
+		getchar();
+		switch(command)
+		{
+			case 1:
+				create_group(conn_fd);
+				break;
+			case 2:
+				join_group(conn_fd);
+				break;
+			case 3:
+				//exit_group();
+				//break;
+			case 4:
+				//View_add_group();
+				//break;
+			case 5:
+				//View_group_members();
+				//break;
+			case 6:
+				//Dissolution_group();
+				//break;
+			case 7:
+				Setup_administrator(conn_fd);
+				break;
+			case 8:
+				//Kicking_people();
+				//break;
+			case 9:
+				deal_group(conn_fd);
+				break;
+			default:
+				printf( "选项错误\n");
+				break;
+		}
+	}while(command != 10);
+}
+
+int create_group(int conn_fd)
+{
+	char buf[1024];
+	int re;
+
+	groupnode grp;
+	grp.flag = 14;
+	printf( "请输入群账号:");
+	gets(grp.group_account);
+	printf( "请输入群昵称:");
+	gets(grp.group_name);
+
+	printf( "account = %s\n",grp.group_account);
+	printf( "name = %s\n",grp.group_name);
+	grp.id = inf.id;
+	strcpy(grp.user_account,inf.account);
+	
+	memset(buf,0,1024);    //初始化 
+	memcpy(buf,&grp,sizeof(groupnode));    //将结构体的内容转为字符串		
+	if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
+
+}
+
+int join_group(int conn_fd)
+{
+	char buf[1024];
+	int re;
+	groupnode grp;
+	grp.flag = 15;
+	printf( "请输入想要加入群的账号\n");
+	gets(grp.group_account);
+	strcpy(grp.user_account,inf.account);
+	grp.id = inf.id;
+
+	memset(buf,0,1024);    //初始化 
+	memcpy(buf,&grp,sizeof(groupnode));    //将结构体的内容转为字符串		
+	if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
+}
+int deal_group(int conn_fd)
+{
+	int num = 0;
+	char ch;
+	int re;
+	char buf[1024];
+	groupnode grp;
+	int fd;
+	if((fd = open("group.txt",O_CREAT | O_APPEND,S_IRUSR | S_IWUSR)) == -1)
+	{
+		printf( "文件打开失败\n");
+	}
+
+	int sum = read(fd,&grp,sizeof(groupnode));
+	
+	while(sum != 0)
+	{
+		printf( "是否还想继续阅读 申请入群请求\n");
+		printf("Y / N:");
+		scanf( "%c",&ch);
+		getchar();
+		if(ch == 'N') break;
+
+		char ch;
+		printf( "账号 为 %s 申请入群\n",grp.user_account);
+		printf( "是否接受?\n");
+		printf( "接受 Y /拒绝 N\n");
+		scanf("%c",&ch);
+		getchar();
+		if(ch == 'Y')   grp.result = 1;
+		else  grp.result = 0;
+		grp.flag = 16;
+		memset(buf,0,1024);    //初始化
+	        memcpy(buf,&grp,sizeof(groupnode));    //将结构体的内容转为字符串
+	        if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
+		num++;     //记录已读 的几条消息  一会删除的 前 num 条消息
+		//	fid.result = 1;   //将本地的 reslut 改为1 代表已经 读 过这条消息
+
+		sum = read(fd,&grp,sizeof(groupnode));
+	}
+
+	if(sum == 0)   printf( "无通知\n");
+	close(fd);
+	
+	//删除 已读 数据
+	if(rename("group.txt","group.txt_temp") < 0)   printf( "776 错误\n");
+
+	FILE *fpsour,*fptarg;
+
+	fpsour = fopen("group.txt_temp","rb");
+	if(NULL == fpsour)   printf( "不能打开文件 781\n");
+
+	fptarg = fopen("group.txt","wb");
+	if(NULL == fptarg)    printf( "不能打开文件  784\n");
+	
+	groupnode temp;
+
+	while(!feof(fpsour))
+	{
+		if(fread(&temp,sizeof(friendnode),1,fpsour))
+		{
+			if(num)  
+			{
+				num--;
+				continue;
+			}
+			else
+			{
+				fwrite(&temp,sizeof(groupnode),1,fptarg);
+			}
+		}
+	}
+
+	fclose(fptarg);
+	fclose(fpsour);
+	
+	remove("group.txt_temp");
+//	printf( "judgeee = %d\n",fid.flag);
+//	printf( "restt = %d\n",fid.result);
+
+}
+int write_file_group(groupnode grp)
+{
+	int fd;
+	        //操作文件不正确 会 输出乱码
+	if(!(fd = open("group.txt",O_CREAT | O_WRONLY,0777)))
+	{
+		printf( "文件打开失败\n");
+	}
+	
+	//写数据
+	//
+	if(write(fd,&grp,sizeof(groupnode)) != sizeof(groupnode))
+	{
+		printf( "写入失败\n");
+	}
+
+	close(fd);
+}
+
+int Setup_administrator(int conn_fd)
+{
+
+	char buf[1024];
+	int re;
+	groupnode grp;
+
+	grp.flag = 17;
+	printf( "请输入你想要设置管理员的账号:");
+	gets(grp.user_account);    //保存将要申请的账号
+	printf( "请输入群账号:");
+	gets(grp.group_account);
+	grp.id = inf.id;
+
+	memset(buf,0,1024);    //初始化
+	memcpy(buf,&grp,sizeof(groupnode));    //将结构体的内容转为字符串
+	if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
 
 }

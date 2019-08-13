@@ -62,8 +62,17 @@ typedef struct    //添加好友
 
 }friendnode;
 
-
-
+typedef struct 
+{
+        int  flag;
+        int  id;  //申请人的 id
+	int  group_id;
+        char user_account[SIZE];  //申请人的账号
+	char user_name[SIZE];
+        char group_name[SIZE]; 
+        char group_account[SIZE];
+	int result;
+}groupnode;
 
 //online 
 
@@ -111,6 +120,11 @@ pthread_mutex_t mutex;
 MYSQL mysql;
 MYSQL_RES *result;
 
+int Set_administrator_persistence(groupnode grp,int conn_fd);  //只能由群主设置   设置管理员
+int join_group_persistence(groupnode grp,int conn_fd);
+int is_group(groupnode grp);  //判断群是否存在 ,
+int group_add_persistence(groupnode grp,int fd); //处理 群申请
+int create_group_persistence(groupnode grp,int conn_fd);  //创建群
 int is_block(int sendid,int acceptid);  //判断是否屏蔽了 消息
 int block_message_persistence(msgnode msg,int conn_fd);   //屏蔽某人
 int Pravite_chat_send_persistence(msgnode msg,int fd);  //消息处理
@@ -252,6 +266,7 @@ static void do_read(int epfd,int fd,char *buf)
 	char anly[5];
 	friendnode fid;
 	downonline offline;
+	groupnode grp;
 	loginnode log;
 	int lack;    //计算还剩 多少数据 需要接收
 	char *p = buf;
@@ -319,8 +334,14 @@ static void do_read(int epfd,int fd,char *buf)
 		case 13:
 			memcpy(&msg,buf,sizeof(msgnode));
 			break;
+		case 14:
+		case 15:
+		case 16:
+		case 17:
+			memcpy(&grp,buf,sizeof(groupnode));
+			break;
 	}
-	printf( " judgeee = %d\n",judge);
+	printf( " judgeee = %d\n",judge);   
 	switch(judge)
 	{
 		case -1:offline_persistence(offline);break;
@@ -337,6 +358,10 @@ static void do_read(int epfd,int fd,char *buf)
 		case 11:Friend_view_persistence(inf,fd);break;
 		case 12:Pravite_chat_send_persistence(msg,fd);break;
 		case 13:block_message_persistence(msg,fd);break;
+		case 14:create_group_persistence(grp,fd);break;
+		case 15:join_group_persistence(grp,fd);break;
+		case 16:group_add_persistence(grp,fd);break;
+		case 17:Set_administrator_persistence(grp,fd);break;
 	}
 
 	memset(buf,0,sizeof(buf));
@@ -671,6 +696,18 @@ int friend_add_send_persistence(friendnode fid,int fd)
 	
 	//先 根据账号 在数据库 里面找到 接受者 的id; 和是否在线
 	
+        online_node_t *curpos;
+
+        List_ForEach(head,curpos)
+        {
+                if(strcmp(curpos->account,fid.acceptaccount) == 0)
+                {
+                        flag = 1;
+                        fid.acceptfd = curpos->fd;
+                        fid.acceptid = curpos->id;
+                        break;
+                }
+        }
 	
         fid.flag = 7;
 	if(flag == 1)
@@ -680,7 +717,7 @@ int friend_add_send_persistence(friendnode fid,int fd)
        		if((re = (send(fid.acceptfd,buf,1024,0))) < 0)  printf( "错误\n"); 	
 	}
 
-        online_node_t *curpos;
+        /*online_node_t *curpos;
 
         List_ForEach(head,curpos)
         {
@@ -698,7 +735,7 @@ int friend_add_send_persistence(friendnode fid,int fd)
 	}
 
 
-
+*/
 
 }
 int friend_add_deal_persistence(friendnode fid)
@@ -973,7 +1010,7 @@ int is_block(int sendid,int acceptid)
         MYSQL_ROW row;
         MYSQL_RES *result = NULL;
 	mysql_query(&mysql,"select user1,user2 from shield ");
-        result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+        result = mysql_store_result(&mysql);    
 	int flag = 0;
 	while(row = mysql_fetch_row(result))
 	{
@@ -981,5 +1018,169 @@ int is_block(int sendid,int acceptid)
 	}
 
 	return flag;
+
+}
+int create_group_persistence(groupnode grp,int conn_fd)
+{
+	char data[1024];
+	int group_id;
+//	printf( "name = %s\n",grp.group_name);
+//	printf( "account = %s\n",grp.group_account);
+
+	sprintf(data,"insert into group_information values('%d','%s','%s',%d,%d)",NULL,grp.group_name,grp.group_account,1,grp.id);
+	if(mysql_query(&mysql,data))     //;  //执行成功返回false  ,失败返回true
+	{
+		printf( "false\n");
+	}
+	//在 群信息中 通过 群账号 找到群 id,
+        MYSQL_FIELD * field;
+        MYSQL_ROW row;
+        MYSQL_RES *result = NULL;
+	MYSQL_RES *result2 = NULL;
+
+	memset(data,0,sizeof(data));
+
+	sprintf( data,"select group_id from group_information where  group_account = '%s'",grp.group_account);
+	mysql_query(&mysql,data);
+        result = mysql_store_result(&mysql);    
+	row = mysql_fetch_row(result);
+	group_id = atoi(row[0]);
+	//在 用户信息中 通过  用户 id 找到用户名字;
+	memset(data,0,sizeof(data));
+	
+	sprintf(data,"select name from login where id = %d",grp.id);
+	mysql_query(&mysql,data);
+        result = mysql_store_result(&mysql);    
+	row = mysql_fetch_row(result);
+	strcpy(grp.user_name,row[0]);
+	memset(data,0,sizeof(data));
+
+	sprintf(data,"insert into group_members values(%d,'%s','%s','%s','%s',1,0)",group_id,grp.group_account,grp.group_name,grp.user_name,grp.user_account);
+	mysql_query(&mysql,data);
+
+
+	return 0;
+}
+int join_group_persistence(groupnode grp,int conn_fd)
+{
+	//先检查是否 有这个群
+	if(!is_group(grp)) return 0;
+	char data[1024];
+	char buf[1024];
+	int flag = 0;
+	int re;
+	char account[SIZE];   //用来保存群主的账号
+	int fd; //用来保存群主的 套接字
+	int id;  //用来保存群主的 id 主键
+	//获取 申请人 的昵称
+	MYSQL_FIELD * field;
+        MYSQL_ROW row;
+        MYSQL_RES *result = NULL;
+	sprintf(data,"select name from login where id = '%d'",grp.id);
+	mysql_query(&mysql,data);
+        result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+	row = mysql_fetch_row(result);
+	strcpy(grp.user_name,row[0]);
+        
+	//在群 的 账号的信息中  找到 群主的id,和群的id ,还有群的 昵称
+	result = NULL;
+	memset(row,0,sizeof(MYSQL_ROW));
+	memset(data,0,sizeof(data));
+	sprintf(data,"select id,group_id,group_name from group_information  where group_account = '%s'",grp.group_account);
+	mysql_query(&mysql,data);
+        result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+	row = mysql_fetch_row(result);
+	id = atoi(row[0]);
+	grp.group_id = atoi(row[1]);
+	strcpy(grp.group_name,row[2]);
+	//通过群主的 id  找到 群主的账号
+	result = NULL;
+	memset(row,0,sizeof(MYSQL_ROW));
+	memset(data,0,sizeof(data));
+	sprintf(data,"select account from login  where id = '%d'",id);
+	mysql_query(&mysql,data);
+        result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+	row = mysql_fetch_row(result);
+	
+	strcpy(account,row[0]);
+
+	//通过群主的账号 找到他的套接字
+	online_node_t *curpos;
+
+        List_ForEach(head,curpos)
+        {
+                if(strcmp(curpos->account,account) == 0)
+                {
+                        flag = 1;
+                        fd = curpos->fd;
+                        break;
+                }
+        }
+	//将消息发送 给群主
+	
+	grp.flag = 12;
+	memset(buf,0,1024);    //初始化
+      	memcpy(buf,&grp,sizeof(groupnode));    //将结构体的内容转为字符串
+	if((re = (send(fd,buf,1024,0))) < 0)  printf( "错误\n");
+	return 0;
+}
+
+int is_group(groupnode grp)
+{
+	char data[1024];
+        MYSQL_FIELD * field;
+        MYSQL_ROW row;
+        MYSQL_RES *result = NULL;
+	printf( "群的账号 :%s\n",grp.group_account);
+	sprintf(data,"select id from group_information where group_account = '%s'",grp.group_account);
+	mysql_query(&mysql,data);
+        result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+	printf( "是否存在:");
+	if(result == NULL)
+	{
+		printf( "NO\n");
+		return 0;
+	}
+	else
+	{
+		printf( "YES\n");
+		return 1;
+	}
+}
+int group_add_persistence(groupnode grp,int fd)
+{
+	char data[1024];
+
+//	printf( "result = %d\n",grp.result);
+	sprintf(data,"insert into group_members values(%d,'%s','%s','%s','%s',0,0)",grp.group_id,grp.group_account,grp.group_name,grp.user_name,grp.user_account);
+	if(mysql_query(&mysql,data)) printf( "false\n");     //;  //执行成功返回false  ,失败返回true
+
+	return 0;
+}
+int Set_administrator_persistence(groupnode grp,int conn_fd)   //只能由群主设置
+{
+	//判断这个群是否存在,并且判断这个人是否为群主
+	
+	char data[1024];
+
+        MYSQL_FIELD * field;
+        MYSQL_ROW row;
+        MYSQL_RES *result = NULL;
+	MYSQL_RES *result1 = NULL;
+	sprintf(data,"select id from group_information where group_account = '%s'",grp.group_account);
+	mysql_query(&mysql,data);
+        result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+	row = mysql_fetch_row(result);
+	
+	if(result != NULL)
+	{
+		if(grp.id == atoi(row[0]))   //如果这个人是群主的话
+		{
+			printf( "account = %s\n",grp.user_account);
+			sprintf(data,"update group_members set administartor = 1 where user_account = '%s'",grp.user_account);
+			mysql_query(&mysql,data);
+		}
+	}
+
 
 }
