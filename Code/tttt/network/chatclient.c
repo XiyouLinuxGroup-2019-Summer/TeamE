@@ -77,7 +77,11 @@ typedef struct     //聊天结构体
 { 
 	int  flag;
 	char sendaccount[SIZE];   //存放发送方的账号
-	char acceptcount[SIZE];    //存放接受方的账号
+	char acceptaccount[SIZE];    //存放接受方的账号
+	
+	char sendname[SIZE];   //存放发送放 的昵称
+	char acceptname[SIZE];  //存放接受者的昵称
+
 	int  sendid;    //存放发送方用户id
 	int  acceptid;   //存放接收方 id
 	int  acceptfd;
@@ -91,10 +95,14 @@ informationnode inf;  //创建一个存储用户信息的结构体  一旦登录
 pthread_mutex_t mutex;  //创建一把锁
 pthread_cond_t cond;    //创建一个信号
 
-int Friend_view_UI(int conn_fd);
-int Friend_del_UI(int conn_fd);
-int Friend_all_view(int conn_fd);
-int Friend_add_send_UI(int fd);
+int Private_chat_accept(msgnode msg);//私聊处理
+int Private_chat_send(int conn_fd);  //私聊
+int Chat_communication_UI(int conn_fd); //聊天
+int block_message(int conn_fd);  //屏蔽消息
+int Friend_view_UI(int conn_fd);   //查看好友
+int Friend_del_UI(int conn_fd);   //删除好友
+int Friend_all_view(int conn_fd);   //查看所有好友
+int Friend_add_send_UI(int fd);    //添加好友
 int offonline(int fd);   //下线通知
 int Friend_management_UI(int fd);   //好友管理主界面
 int View_information_UI(int fd);    //查看用户信息
@@ -512,6 +520,8 @@ int *main_recv(void *arg)
 				printf("%s     %s     \n",inf.account,inf.name);
 				break;
 			case 11:
+				Private_chat_accept(msg);
+				break;
 
 		}
 
@@ -556,7 +566,7 @@ int major_UI(int conn_fd)
 				Friend_management_UI(conn_fd);
 				break;
 			case 2:
-	//			Chat_communication_UI();
+				Chat_communication_UI(conn_fd);
 				break;
 			case 3:
 	//			Group_management_UI();
@@ -889,7 +899,7 @@ int Friend_view_UI(int conn_fd)
 	if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
 	
 }
-int  Chat_communication_UI(int connfd)
+int  Chat_communication_UI(int conn_fd)
 {
 
 	int command;
@@ -902,14 +912,14 @@ int  Chat_communication_UI(int connfd)
 		printf("[3]  查看聊天记录\n");
 		printf("[4]  离线消息\n");
 		printf("[5]  屏蔽某人消息\n");
-		
+		printf( "请输入选项:");
 		scanf( "%d",&command);
 		getchar();
 		switch(command)
 		{
 			case 1:
-				//Private_chat_send();
-				//break;
+				Private_chat_send(conn_fd);
+				break;
 			case 2:
 				//group_chat( );
 				//break;
@@ -920,9 +930,9 @@ int  Chat_communication_UI(int connfd)
 				//offline_message( );
 				//break;
 			case 5:
-				//block_message();
-				//break;
-			default
+				block_message(conn_fd);
+				break;
+			default:
 				printf( "选项错误\n");
 		}
 
@@ -935,7 +945,7 @@ int Private_chat_send(int conn_fd)
 
 	msgnode msg;
 	printf("请输入你想要聊天的账号\n");
-	gets(msg.msg);
+	gets(msg.acceptaccount);
 	msg.sendid = inf.id;
 	msg.sendfd = conn_fd;
 	strcpy(msg.sendaccount,inf.account);
@@ -944,7 +954,7 @@ int Private_chat_send(int conn_fd)
 //	memset(buf,0,1024);    //初始化 
 //	memcpy(buf,&fid,sizeof(friendnode));    //将结构体的内容转为字符串
 //	if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
-	printf( "输入\a退出聊天.\n");
+	printf( "输入 qwe 退出聊天.\n");
 	do
 	{
 		printf( " 请输入聊天信息: ");
@@ -954,9 +964,35 @@ int Private_chat_send(int conn_fd)
 		memset(buf,0,1024);    //初始化 
 		memcpy(buf,&msg,sizeof(msgnode));    //将结构体的内容转为字符串
 		if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
-	}while(strcmp(msg.msg,"\a") != 0);
+	}while(strcmp(msg.msg,"qwe") != 0);
 
 
+
+
+}
+int Private_chat_accept(msgnode msg)  
+{
+	//判断是否 在和当前 这个人聊天  通过账号判断
+	//  是 将消息打印到屏幕
+	printf("name = %s 发送:%s\n",msg.sendname,msg.msg);
+	// 不是将消息保存到本地
+	
+}
+
+int block_message(int conn_fd)
+{
+	int re;
+	char buf[1024];
+	msgnode msg;
+
+	msg.flag = 13;
+	printf( "请输入你想要屏蔽的账号:");
+	gets(msg.acceptaccount);
+	msg.sendid = inf.id;
+
+	memset(buf,0,1024);    //初始化 
+	memcpy(buf,&msg,sizeof(msgnode));    //将结构体的内容转为字符串		
+	if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
 
 
 }

@@ -111,6 +111,8 @@ pthread_mutex_t mutex;
 MYSQL mysql;
 MYSQL_RES *result;
 
+int is_block(int sendid,int acceptid);  //判断是否屏蔽了 消息
+int block_message_persistence(msgnode msg,int conn_fd);   //屏蔽某人
 int Pravite_chat_send_persistence(msgnode msg,int fd);  //消息处理
 int Friend_view_persistence(informationnode inf,int conn_fd); //查看在线好友
 int Friend_all_view_persistence(informationnode inf,int conn_fd);  //查看所有好友
@@ -314,10 +316,11 @@ static void do_read(int epfd,int fd,char *buf)
 			memcpy(&fid,buf,sizeof(friendnode));
 			break;
 		case 12:
+		case 13:
 			memcpy(&msg,buf,sizeof(msgnode));
 			break;
 	}
-	printf( " judge = %d\n",judge);
+	printf( " judgeee = %d\n",judge);
 	switch(judge)
 	{
 		case -1:offline_persistence(offline);break;
@@ -333,6 +336,7 @@ static void do_read(int epfd,int fd,char *buf)
 		case 10:Friend_all_view_persistence(inf,fd);break;
 		case 11:Friend_view_persistence(inf,fd);break;
 		case 12:Pravite_chat_send_persistence(msg,fd);break;
+		case 13:block_message_persistence(msg,fd);break;
 	}
 
 	memset(buf,0,sizeof(buf));
@@ -867,13 +871,11 @@ int Friend_view_persistence(informationnode inf,int conn_fd)
 }
 int Pravite_chat_send_persistence(msgnode msg,int conn_fd)
 {
-
 	char buf[1024];
 	char data[1024];
 	
 	int  re;
 	int flag = 0;
-
         online_node_t *curpos;
 
         List_ForEach(head,curpos)
@@ -886,18 +888,24 @@ int Pravite_chat_send_persistence(msgnode msg,int conn_fd)
                         break;
                 }
         }
+	if(is_block(msg.sendid,msg.acceptid))  return 0;
+
+//	printf( "flag = = = %d\n",flag);
+//	printf( "账号 %s\n",msg.acceptaccount);
+
 	if(flag == 0)
 	{
 		//发送对方不在线, 给发送者
 	}
 	else
 	{
+//		printf( "qweqweqweqwewqeqe\n");
 		// 在数据库 中 通过id 找到 name
     		MYSQL_FIELD * field;
     	   	MYSQL_ROW row;
       	 	MYSQL_RES *result = NULL;
 
-		sprintf(data,"select name from login where id = %d",msg.sendid);	
+		sprintf(data,"select name from login where id = %d",msg.sendid);
 		mysql_query(&mysql,data);
 		result = mysql_store_result(&mysql);
 		row = mysql_fetch_row(result);
@@ -911,16 +919,67 @@ int Pravite_chat_send_persistence(msgnode msg,int conn_fd)
 		row = mysql_fetch_row(result);
 		strcpy(msg.acceptname,row[0]);
 
-
-
 		// 在数据库通过 id 找到昵称
 
 		//将消息保存下来
 		
 		//将消息发送给接受者
+		msg.flag = 11;
 		memset(buf,0,1024);    //初始化
       	 	memcpy(buf,&msg,sizeof(msgnode));    //将结构体的内容转为字符串
 		if((re = (send(msg.acceptfd,buf,1024,0))) < 0)  printf( "错误\n");
 	}
+
+	return 0;
+
+}
+
+int block_message_persistence(msgnode msg,int conn_fd)
+{
+	char data[1024];
+
+    	MYSQL_FIELD * field;
+       	MYSQL_ROW row;
+     	MYSQL_RES *result = NULL;
+	sprintf(data,"select id from login where account = '%s'",msg.acceptaccount);
+	if(mysql_query(&mysql,data))     printf( "false\n");
+	result = mysql_store_result(&mysql);
+	
+/*	//问题
+ *	if(result == NULL)
+	{
+		printf( "无此账号\n");
+		return 0;
+	}
+	if(row == NULL)   printf( "无此账号\n");
+
+	*/
+	row = mysql_fetch_row(result);
+	int id2 = atoi(row[0]);
+//	printf( "id2 = %d\n",id2);
+	memset(data,0,sizeof(data));
+
+	sprintf(data,"insert into shield values('%d','%d')",msg.sendid,id2);
+	mysql_query(&mysql,data);  //执行成功返回false  ,失败返回true
+	
+	return 0;
+}
+
+int is_block(int sendid,int acceptid)
+{
+
+
+        MYSQL_FIELD * field;
+        MYSQL_ROW row;
+        MYSQL_RES *result = NULL;
+	mysql_query(&mysql,"select user1,user2 from shield ");
+        result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+	int flag = 0;
+	while(row = mysql_fetch_row(result))
+	{
+		if(acceptid == atoi(row[0]) && sendid == atoi(row[1]))  flag = 1;
+	}
+
+	return flag;
 
 }
