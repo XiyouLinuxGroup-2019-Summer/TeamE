@@ -120,6 +120,7 @@ pthread_mutex_t mutex;
 MYSQL mysql;
 MYSQL_RES *result;
 
+int exit_group_persistence(grp);  //退群
 int Set_administrator_persistence(groupnode grp,int conn_fd);  //只能由群主设置   设置管理员
 int join_group_persistence(groupnode grp,int conn_fd);
 int is_group(groupnode grp);  //判断群是否存在 ,
@@ -338,6 +339,7 @@ static void do_read(int epfd,int fd,char *buf)
 		case 15:
 		case 16:
 		case 17:
+		case 18:
 			memcpy(&grp,buf,sizeof(groupnode));
 			break;
 	}
@@ -362,6 +364,7 @@ static void do_read(int epfd,int fd,char *buf)
 		case 15:join_group_persistence(grp,fd);break;
 		case 16:group_add_persistence(grp,fd);break;
 		case 17:Set_administrator_persistence(grp,fd);break;
+		case 18:exit_group_persistence(grp);break;
 	}
 
 	memset(buf,0,sizeof(buf));
@@ -1183,4 +1186,13 @@ int Set_administrator_persistence(groupnode grp,int conn_fd)   //只能由群主
 	}
 
 
+}
+int exit_group_persistence(groupnode grp)
+{
+	char data[1024];
+	printf( "group = %s\n",grp.group_account);
+	printf( "group = %s\n",grp.user_account);
+
+	sprintf(data,"delete from group_members where (group_account = '%s' && user_account = '%s') ",grp.group_account,grp.user_account);
+	mysql_query(&mysql,data);
 }

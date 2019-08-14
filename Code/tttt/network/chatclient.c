@@ -109,6 +109,7 @@ informationnode inf;  //创建一个存储用户信息的结构体  一旦登录
 pthread_mutex_t mutex;  //创建一把锁
 pthread_cond_t cond;    //创建一个信号
 
+int exit_group(int conn_fd);   //退群
 int Setup_administrator(int conn_fd);  //设置管理员
 int join_group(int conn_fd);    //加入群
 int deal_group(int conn_fd);   //处理入群申请
@@ -1029,13 +1030,13 @@ int Group_management_UI(int conn_fd)
 	do
 	{
 		printf( "[1]   创建群\n");
-		printf( "[2]   加群\n");
-		printf( "[3]   退群\n");
+		printf( "[2]   加群\n");   //群人数 +1
+		printf( "[3]   退群\n");   //群人数 -1
 		printf( "[4]   查看已加群\n");
 		printf( "[5]   查看群成员\n");
-		printf( "[6]   解散群\n");
+		printf( "[6]   解散群\n");  
 		printf( "[7]   设置管理员\n");
-		printf( "[8]   踢人\n");
+		printf( "[8]   踢人\n");   // 群人数  -1 只有群主,管理员 
 		printf( "[9]   查看群申请\n");
 		printf( "[10]  退出\n");
 		printf( "请输入选项:\n");
@@ -1050,8 +1051,8 @@ int Group_management_UI(int conn_fd)
 				join_group(conn_fd);
 				break;
 			case 3:
-				//exit_group();
-				//break;
+				exit_group(conn_fd);
+				break;
 			case 4:
 				//View_add_group();
 				//break;
@@ -1232,5 +1233,22 @@ int Setup_administrator(int conn_fd)
 	memset(buf,0,1024);    //初始化
 	memcpy(buf,&grp,sizeof(groupnode));    //将结构体的内容转为字符串
 	if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
+
+}
+int exit_group(int conn_fd)
+{
+	char buf[1024];
+	int re;
+
+	groupnode grp;
+	printf( "请输入你退出群的账号:");
+	gets(grp.group_account);
+	grp.id = inf.id;
+	grp.flag = 18;
+	strcpy(grp.user_account,inf.account);
+	memset(buf,0,1024);    //初始化
+	memcpy(buf,&grp,sizeof(groupnode));    //将结构体的内容转为字符串
+	if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
+
 
 }
