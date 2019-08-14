@@ -34,6 +34,20 @@ typedef struct
         int  result;
 }loginnode;
 
+typedef struct 
+{
+	int flag;
+	char sendaccount[SIZE];
+	char sendname[SIZE];
+	char acceptaccount[SIZE];
+	char acceptname[SIZE];
+	char groupaccount[SIZE];
+	char message[MGSIZE];
+}historynode;
+
+
+
+
 typedef struct online_node   //存储上线 的用户 ID,套接字,账号
 {
 	int fd;
@@ -68,6 +82,7 @@ typedef struct
         int  id;  //申请人的 id
 	int  group_id;
         char user_account[SIZE];  //申请人的账号
+	char administartor_account[SIZE];
 	char user_name[SIZE];
         char group_name[SIZE]; 
         char group_account[SIZE];
@@ -104,6 +119,7 @@ typedef struct     //聊天结构体
         int acceptid;   //存放接收方 id
 	int acceptfd;   //存放接受者的 套接字
 	int sendfd;    //存放发送者的套接字
+	char group_account[SIZE];   //存放 接受群 的账号 
         char msg[MGSIZE];     //消息的最大长度
 }msgnode;
 
@@ -120,6 +136,13 @@ pthread_mutex_t mutex;
 MYSQL mysql;
 MYSQL_RES *result;
 
+int View_chat_group_history(historynode his,int conn_fd); //查看群 聊天记录
+int View_chat_friend_history(historynode his,int fd);     //查看好友的聊天记录 
+int chat_group_persistence(msgnode msg,int fd);           //群聊天:
+int Dissolution_group_persistence(groupnode grp,int fd);   //解散群
+int View_group_members(groupnode grp,int fd);    //查看群成员
+int View_add_group_persistence(groupnode  grp,int conn_fd);   //查看已加入的 群
+int Kicking_people_persistence(groupnode grp);    //踢人
 int exit_group_persistence(groupnode grp);  //退群
 int Set_administrator_persistence(groupnode grp,int conn_fd);  //只能由群主设置   设置管理员
 int join_group_persistence(groupnode grp,int conn_fd);
@@ -263,6 +286,7 @@ int listenfd_accept(int epfd,int fd)
 
 static void do_read(int epfd,int fd,char *buf)
 {
+	historynode his;
 	msgnode msg;
 	char anly[5];
 	friendnode fid;
@@ -333,6 +357,7 @@ static void do_read(int epfd,int fd,char *buf)
 			break;
 		case 12:
 		case 13:
+		case 23:
 			memcpy(&msg,buf,sizeof(msgnode));
 			break;
 		case 14:
@@ -340,7 +365,14 @@ static void do_read(int epfd,int fd,char *buf)
 		case 16:
 		case 17:
 		case 18:
+		case 19:
+		case 20:
+		case 21:
+		case 22:
 			memcpy(&grp,buf,sizeof(groupnode));
+		case 24:
+		case 25:
+			memcpy(&his,buf,sizeof(historynode));
 			break;
 	}
 	printf( " judgeee = %d\n",judge);   
@@ -365,6 +397,13 @@ static void do_read(int epfd,int fd,char *buf)
 		case 16:group_add_persistence(grp,fd);break;
 		case 17:Set_administrator_persistence(grp,fd);break;
 		case 18:exit_group_persistence(grp);break;
+		case 19:Kicking_people_persistence(grp);break;
+		case 20:View_add_group_persistence(grp,fd);break;
+		case 21:View_group_members(grp,fd);break;
+		case 22:Dissolution_group_persistence(grp,fd);break;
+		case 23:chat_group_persistence(msg,fd);break;
+		case 24:View_chat_friend_history(his,fd);break;
+		case 25:View_chat_group_history(his,fd);break;
 	}
 
 	memset(buf,0,sizeof(buf));
@@ -962,7 +1001,9 @@ int Pravite_chat_send_persistence(msgnode msg,int conn_fd)
 		// 在数据库通过 id 找到昵称
 
 		//将消息保存下来
-		
+		memset(data,0,sizeof(data));
+		sprintf(data,"insert into friend_history values('%d','%s','%s','%s','%s','%s')",NULL,msg.sendaccount,msg.sendname,msg.acceptaccount,msg.acceptname,msg.msg);
+		mysql_query(&mysql,data);
 		//将消息发送给接受者
 		msg.flag = 11;
 		memset(buf,0,1024);    //初始化
@@ -1156,9 +1197,7 @@ int group_add_persistence(groupnode grp,int fd)
         MYSQL_FIELD * field;
         MYSQL_ROW row;
         MYSQL_RES *result = NULL;
-
 	//	printf( "result = %d\n",grp.result);
-
 	sprintf(data,"insert into group_members values(%d,'%s','%s','%s','%s',0,0)",grp.group_id,grp.group_account,grp.group_name,grp.user_name,grp.user_account);
 	if(mysql_query(&mysql,data)) printf( "false\n");     //;  //执行成功返回false  ,失败返回true
 	
@@ -1168,7 +1207,7 @@ int group_add_persistence(groupnode grp,int fd)
 	mysql_query(&mysql,data);
         result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
 	row = mysql_fetch_row(result);
-
+	if(NULL == result)   printf( "asdadasd\n");
 	memset(data,0,sizeof(data));
 	sprintf(data,"update group_information set group_members = %d where group_account = '%s'",atoi(row[0])+1,grp.group_account);
 	mysql_query(&mysql,data);
@@ -1228,3 +1267,254 @@ int exit_group_persistence(groupnode grp)
 }
 
 
+int Kicking_people_persistence(groupnode grp)
+{
+	char data[1024];
+	//判断是否为群主 或 管理员 
+        int flag = 0;
+
+	MYSQL_FIELD * field;
+        MYSQL_ROW row;
+        MYSQL_RES *result = NULL;
+	sprintf(data,"select lord,administartor from group_members where (group_account = '%s' && user_account = '%s')",grp.group_account,grp.administartor_account);
+	mysql_query(&mysql,data);
+        
+	result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+	row = mysql_fetch_row(result);
+	
+	if(atoi(row[0]) || atoi(row[1]))   flag = 1;
+
+	if(flag == 1)    //若为群主或 管理员  
+	{
+	/*	sprintf(data,"delete from group_members where (group_account = '%s' && user_account = '%s') ",grp.group_account,grp.user_account);
+		mysql_query(&mysql,data);
+		memset(data,0,sizeof(data));
+		
+		sprintf(data,"select group_members from group_information where group_account = '%s'",grp.group_account);
+		mysql_query(&mysql,data);
+       		
+		result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+		row = mysql_fetch_row(result);
+	
+		memset(data,0,sizeof(data));
+		sprintf(data,"update group_information set group_members = %d where group_account = '%s'",atoi(row[0])-1,grp.group_account);
+		mysql_query(&mysql,data);
+	*/
+		exit_group_persistence(grp);
+	}
+}
+int View_add_group_persistence(groupnode  grp,int conn_fd)
+{
+
+	char data[1024];
+	char buf[1024];
+	int re;
+
+	MYSQL_FIELD * field;
+        MYSQL_ROW row;
+        MYSQL_RES *result = NULL;
+	sprintf(data,"select group_account,group_name from group_members where user_account = '%s'",grp.user_account);
+
+	mysql_query(&mysql,data);
+        
+	result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+	while(row = mysql_fetch_row(result))
+	{
+		strcpy(grp.group_account,row[0]);
+		strcpy(grp.group_name,row[1]);
+	
+		grp.flag = 13;
+		memset(buf,0,1024);    //初始化
+      	 	memcpy(buf,&grp,sizeof(groupnode));    //将结构体的内容转为字符串
+		if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
+	}
+
+	return 0;
+}
+int View_group_members(groupnode grp,int conn_fd)
+{
+	char data[1024];
+	char buf[1024];
+	int re;
+	//首先判断是否为群成员
+	
+	
+	
+	//
+	MYSQL_FIELD * field;
+        MYSQL_ROW row;
+        MYSQL_RES *result = NULL;
+	sprintf(data,"select user_name,user_account from group_members where group_account = '%s'",grp.group_account);
+
+	mysql_query(&mysql,data);
+        
+	result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+	while(row = mysql_fetch_row(result))
+	{
+		strcpy(grp.user_name,row[0]);
+		strcpy(grp.user_account,row[1]);
+		//printf("name = %s,account = %s\n",row[0],row[1]);
+		grp.flag = 14;
+		memset(buf,0,1024);    //初始化
+      	 	memcpy(buf,&grp,sizeof(groupnode));    //将结构体的内容转为字符串
+		if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
+	}
+
+}
+int Dissolution_group_persistence(groupnode grp,int conn_fd)
+{
+	char data[1024];
+	int flag = 0;    //表示这个人是不是群主
+	int group_id;
+	MYSQL_FIELD * field;
+        MYSQL_ROW row;
+        MYSQL_RES *result = NULL;
+	//判断这个 人是不是群主
+	sprintf(data,"select id from group_information where group_account = '%s'",grp.group_account);
+	mysql_query(&mysql,data);
+	
+	result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+	row = mysql_fetch_row(result);
+	if(grp.id == atoi(row[0]))   flag = 1;
+
+	memset(data,0,sizeof(data));
+
+	if(flag == 1)
+	{
+		//先通过群账号 获得 群 id 并删除这个  数据
+		sprintf(data,"select group_id from group_information where group_account = '%s'",grp.group_account);
+		mysql_query(&mysql,data);
+	        
+		result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+		row = mysql_fetch_row(result);
+		group_id = atoi(row[0]);
+	
+		//删除这条数据
+	
+		memset(data,0,sizeof(data));
+		sprintf(data,"delete from group_information where group_id = %d ",atoi(row[0]));
+		mysql_query(&mysql,data);
+	
+		//在通过 id 在member 删除所有成员
+		
+		memset(data,0,sizeof(data));
+		sprintf(data,"delete from group_members where group_id = %d ",atoi(row[0]));
+		mysql_query(&mysql,data);
+	
+	}
+
+	return 0;
+}
+int chat_group_persistence(msgnode msg,int fd)
+{
+	char buf[1024];
+	char data[1024];
+	int flag = 0;
+	int re;
+	//通过 用户 sendid 找到 对应的 昵称
+
+	//遍历 群 里所有的成员, 然后 判断 是否 在线 若 不在线 存入离线,若存在  直接发送
+
+	//通过 群id  找到所有群成员
+	MYSQL_FIELD * field;
+        MYSQL_ROW row;
+        MYSQL_RES *result = NULL;
+        MYSQL_RES *result1 = NULL;
+	//过去 发送者 的名字
+	sprintf(data,"select name from login where id = %d",msg.sendid);
+	mysql_query(&mysql,data);
+	result1 = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+	row = mysql_fetch_row(result1);
+	strcpy(msg.sendname,row[0]);
+
+	memset(data,0,sizeof(data));
+	sprintf(data,"insert into group_history values(%d,'%s','%s','%s','%s')",NULL,msg.group_account,msg.sendaccount,msg.sendname,msg.msg);
+	mysql_query(&mysql,data);
+	//  
+	memset(data,0,sizeof(data));
+	sprintf(data,"select user_account from group_members where group_account = '%s'",msg.group_account);
+	mysql_query(&mysql,data);
+	
+	result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+
+	while(row = mysql_fetch_row(result))
+	{
+  	      online_node_t *curpos;
+
+	      List_ForEach(head,curpos)
+	      {
+			if(strcmp(curpos->account,row[0]) == 0)
+			{
+				flag = 1;
+				msg.acceptfd = curpos->fd;
+				msg.acceptid = curpos->id;
+			break;
+			}
+	      }
+
+	      if(flag == 1)
+	      {
+		        msg.flag = 15;
+			memset(buf,0,1024);    //初始化
+	      	 	memcpy(buf,&msg,sizeof(msgnode));    //将结构体的内容转为字符串
+			if((re = (send(msg.acceptfd,buf,1024,0))) < 0)  printf( "错误\n");
+	      }
+
+	}
+        
+
+}
+int View_chat_friend_history(historynode his,int conn_fd)
+{
+	char data[1024];
+	char buf[1024];
+	int re;
+	MYSQL_FIELD * field;
+        MYSQL_ROW row;
+        MYSQL_RES *result = NULL;
+	sprintf(data,"select sendname,acceptname,message  from friend_history where (acceptaccount = '%s'  && sendaccount = '%s') || (acceptaccount = '%s'  && sendaccount = '%s' )",his.acceptaccount,his.sendaccount,his.sendaccount,his.acceptaccount );
+	
+	if(mysql_query(&mysql,data))  printf( "false\n");
+	result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+
+	if(result == NULL)   printf( " 1478     结果集为空\n");
+	while(row = mysql_fetch_row(result))
+	{
+			strcpy(his.sendname,row[0]);
+			strcpy(his.acceptname,row[1]);
+			strcpy(his.message,row[2]);
+		        his.flag = 16;
+			memset(buf,0,1024);    //初始化
+	      	 	memcpy(buf,&his,sizeof(historynode));    //将结构体的内容转为字符串
+			if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
+	}
+
+
+
+}
+int View_chat_group_history(historynode his,int conn_fd)
+{
+	char data[1024];
+	char buf[1024];
+	int re;
+	MYSQL_FIELD * field;
+        MYSQL_ROW row;
+        MYSQL_RES *result = NULL;
+	sprintf(data,"select sendname,sendaccount,message  from group_history where groupaccount = '%s'",his.groupaccount);
+	
+	if(mysql_query(&mysql,data))  printf( "false\n");
+	result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+
+	if(result == NULL)   printf( " 1478     结果集为空\n");
+	while(row = mysql_fetch_row(result))
+	{
+			strcpy(his.sendname,row[0]);
+			strcpy(his.sendaccount,row[1]);
+			strcpy(his.message,row[2]);
+		        his.flag = 17;
+			memset(buf,0,1024);    //初始化
+	      	 	memcpy(buf,&his,sizeof(historynode));    //将结构体的内容转为字符串
+			if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
+	}
+	
+}
