@@ -120,7 +120,7 @@ pthread_mutex_t mutex;
 MYSQL mysql;
 MYSQL_RES *result;
 
-int exit_group_persistence(grp);  //退群
+int exit_group_persistence(groupnode grp);  //退群
 int Set_administrator_persistence(groupnode grp,int conn_fd);  //只能由群主设置   设置管理员
 int join_group_persistence(groupnode grp,int conn_fd);
 int is_group(groupnode grp);  //判断群是否存在 ,
@@ -1153,10 +1153,25 @@ int is_group(groupnode grp)
 int group_add_persistence(groupnode grp,int fd)
 {
 	char data[1024];
+        MYSQL_FIELD * field;
+        MYSQL_ROW row;
+        MYSQL_RES *result = NULL;
 
-//	printf( "result = %d\n",grp.result);
+	//	printf( "result = %d\n",grp.result);
+
 	sprintf(data,"insert into group_members values(%d,'%s','%s','%s','%s',0,0)",grp.group_id,grp.group_account,grp.group_name,grp.user_name,grp.user_account);
 	if(mysql_query(&mysql,data)) printf( "false\n");     //;  //执行成功返回false  ,失败返回true
+	
+	memset(data,0,sizeof(data));
+	
+	sprintf(data,"select group_members from group_information where group_account = '%s'",grp.group_account);
+	mysql_query(&mysql,data);
+        result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+	row = mysql_fetch_row(result);
+
+	memset(data,0,sizeof(data));
+	sprintf(data,"update group_information set group_members = %d where group_account = '%s'",atoi(row[0])+1,grp.group_account);
+	mysql_query(&mysql,data);
 
 	return 0;
 }
@@ -1190,9 +1205,26 @@ int Set_administrator_persistence(groupnode grp,int conn_fd)   //只能由群主
 int exit_group_persistence(groupnode grp)
 {
 	char data[1024];
-	printf( "group = %s\n",grp.group_account);
-	printf( "group = %s\n",grp.user_account);
+        MYSQL_FIELD * field;
+        MYSQL_ROW row;
+        MYSQL_RES *result = NULL;
 
 	sprintf(data,"delete from group_members where (group_account = '%s' && user_account = '%s') ",grp.group_account,grp.user_account);
 	mysql_query(&mysql,data);
+
+	//更新群人数
+
+	memset(data,0,sizeof(data));
+	
+	sprintf(data,"select group_members from group_information where group_account = '%s'",grp.group_account);
+	mysql_query(&mysql,data);
+        result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+	row = mysql_fetch_row(result);
+
+	memset(data,0,sizeof(data));
+	sprintf(data,"update group_information set group_members = %d where group_account = '%s'",atoi(row[0])-1,grp.group_account);
+	mysql_query(&mysql,data);
+
 }
+
+
