@@ -104,11 +104,18 @@ typedef struct     //聊天结构体
 	char group_account[SIZE];   //存放 接受群 的账号
 	char msg[MSGSIZE];     //消息的最大长度
 }msgnode;
+typedef struct
+{
+        int flag;
+        char noc[512];
+}noticenode;
+
 
 typedef struct 
 {
 	int  flag;
 	int  id;  //申请人的 id
+	int  sendfd;   //申请人的套接字
 	int  group_id;   //群的id
 	char user_account[SIZE];  //申请人的账号
 	char administartor_account[SIZE];
@@ -126,9 +133,11 @@ informationnode inf;  //创建一个存储用户信息的结构体  一旦登录
 pthread_mutex_t mutex;  //创建一把锁
 pthread_cond_t cond;    //创建一个信号
 
+int write_file_noc(noticenode noc);
+int Find_notice();   // 消息通知
 int View_chat_group_history(int conn_fd);  //查看群聊天记录
 int View_chat_friend_history(int conn_fd);   //查看好友聊天记录
-int View_chat_history(conn_fd);   //查看历史记录
+int View_chat_history(int conn_fd);   //查看历史记录
 int group_chat_accept(msgnode msg);    //接受群消息
 int group_chat(int conn_fd);       //群聊
 int Dissolution_group(int conn_fd);
@@ -404,6 +413,7 @@ int Account_regist_UI(int conn_fd)
 
 int *main_recv(void *arg)
 {
+	noticenode noc;
 	historynode his;
 	msgnode msg;
 	loginnode log;
@@ -447,6 +457,8 @@ int *main_recv(void *arg)
 		//printf( "\n");
 		switch(judge)
 		{
+			case 0:
+				memcpy(&noc,recv_buf,sizeof(noticenode));break;
 			case 1:
 			case 2:
 			case 3:
@@ -483,6 +495,9 @@ int *main_recv(void *arg)
 		pthread_mutex_lock(&mutex);
 		switch(judge)
 		{
+			case 0:
+				write_file_noc(noc);
+				break;
 			case 1:
 				if(log.result == 1)
 				{
@@ -622,7 +637,8 @@ int major_UI(int conn_fd)
 		printf( "[5]  修改信息\n");
 		printf( "[6]  查看用户信息\n");
 		printf( "[7]  查看消息通知\n");
-		printf( "[8]  退出\n");
+		printf( "[8]  查看系统通知");
+		printf( "[9]  退出\n");
 	
 		printf( "请输入选项 :");
 		scanf( "%d",&command);
@@ -652,11 +668,14 @@ int major_UI(int conn_fd)
 			case 7:
 				Find_freind(conn_fd);
 				break;
+			case 8:
+				Find_notice();
+				break;
 			default :
 				printf( "选项错误\n");
 		}	
 		printf( "command = %d\n",command);
-	}while(command != 8);
+	}while(command != 9);
 }
 int Modity_information_UI(int fd)
 {
@@ -759,6 +778,7 @@ int Friend_add_send_UI(int conn_fd)
 
 	friendnode fid;
 	fid.flag = 7;
+	printf( "conn_cd = %d\n",conn_fd);
 	printf( "请输入你想要加为好友的 账号:");
 	gets(fid.acceptaccount);
 	strcpy(fid.sendaccount,inf.account);
@@ -930,7 +950,8 @@ int Friend_del_UI(int conn_fd)
 	memcpy(buf,&fid,sizeof(friendnode));    //将结构体的内容转为字符串
        
 	if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
-
+	
+	printf( "您已成功删除 %s 好友",fid.acceptaccount);
 	return 0;
 }
 
@@ -1444,4 +1465,94 @@ int View_chat_group_history(int conn_fd)
 	memset(buf,0,1024);
 	memcpy(buf,&his,sizeof(historynode));
 	if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
+}
+int write_file_noc(noticenode noc)
+{
+	int fd;
+	        //操作文件不正确 会 输出乱码
+		//
+	printf( "111111111111\n");
+	if(!(fd = open("noc.txt",O_CREAT | O_WRONLY,0777)))
+	{
+		printf( "文件打开失败\n");
+	}
+	
+	//写数据
+	//
+	if(write(fd,&noc,sizeof(noticenode)) != sizeof(noticenode))
+	{
+		printf( "写入失败\n");
+	}
+
+	close(fd);
+
+}
+
+int Find_notice()   // 消息通知
+{
+
+	int num = 0;
+	char ch;
+	char buf[1024];
+
+	noticenode noc;
+	int fd;
+	if((fd = open("noc.txt",O_CREAT | O_APPEND,S_IRUSR | S_IWUSR)) == -1)
+	{
+		printf( "文件打开失败\n");
+	}
+
+	int sum = read(fd,&noc,sizeof(noticenode));
+	
+	while(sum != 0)
+	{
+		printf( "是否还想继续阅读 系统通知\n");
+		printf("Y / N:");
+		scanf( "%c",&ch);
+		getchar();
+		if(ch == 'N') break;
+		printf("%s\n",noc.noc);
+		sum = read(fd,&noc,sizeof(noticenode));
+	}
+
+	if(sum == 0)   printf( "无通知\n");
+	close(fd);
+	
+	//删除 已读 数据
+	if(rename("noc.txt","noc.txt_temp") < 0)   printf( "776 错误\n");
+
+	FILE *fpsour,*fptarg;
+
+	fpsour = fopen("noc.txt_temp","rb");
+	if(NULL == fpsour)   printf( "不能打开文件 781\n");
+
+	fptarg = fopen("noc.txt","wb");
+	if(NULL == fptarg)    printf( "不能打开文件  784\n");
+	
+	noticenode  temp;
+
+	while(!feof(fpsour))
+	{
+		if(fread(&temp,sizeof(noticenode),1,fpsour))
+		{
+			if(num)  
+			{
+				num--;
+				continue;
+			}
+			else
+			{
+				fwrite(&temp,sizeof(noticenode),1,fptarg);
+			}
+		}
+	}
+
+	fclose(fptarg);
+	fclose(fpsour);
+	
+	remove("noc.txt_temp");
+//	printf( "judgeee = %d\n",fid.flag);
+//	printf( "restt = %d\n",fid.result);
+
+	printf( "1111\n");
 }
