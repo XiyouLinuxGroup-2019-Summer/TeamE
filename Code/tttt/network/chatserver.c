@@ -144,6 +144,9 @@ pthread_mutex_t mutex;
 MYSQL mysql;
 MYSQL_RES *result;
 
+int del_send_offline_chat(char account[SIZE],int conn_fd);   
+int send_offline_chat(char account[SIZE],int conn_fd);
+int Find_namebyaccount(char account[SIZE],char name[SIZE]);
 int del_send_offline_noc(char account[SIZE],int conn_fd);
 int del_send_offline_friend(char account[SIZE],int conn_fd);
 int send_offline_noc(char account[SIZE],int conn_fd);  //检查离线通知
@@ -235,6 +238,8 @@ int main( )
 	if(mysql_query(&mysql,"set names utf8"))  printf( "FAlse \n");
 
 	int ret = 0;
+	int sendid;    //存放发送方用户id
+
 	while(1)
 	{
 		//委托内核监测事件
@@ -528,6 +533,8 @@ int Account_login_persistence(loginnode log,int fd)    //登录
 	del_send_offline_friend(log.account,fd);
 	send_offline_noc(log.account,fd);
 	del_send_offline_noc(log.account,fd);
+	send_offline_chat(log.account,fd);
+	del_send_offline_chat(log.account,fd);
 	return flag;
 }
 int Account_updatapassword_persistence(loginnode log,int fd)
@@ -1075,7 +1082,13 @@ int Pravite_chat_send_persistence(msgnode msg,int conn_fd)
 
 	if(flag == 0)
 	{
-		//发送对方不在线, 给发送者
+
+
+		sprintf(data,"insert into offline_chat values(%d,'%s','%s','%s')",NULL,msg.sendaccount,msg.acceptaccount,msg.msg);
+		
+		printf( "离离线\n");
+		mysql_query(&mysql,data);
+		//发送对方不在线, 给发送者	
 	}
 	else
 	{
@@ -1767,4 +1780,115 @@ int del_send_offline_noc(char account[SIZE],int conn_fd)
 
 	sprintf(data,"delete from offline_noc where sendaccount = '%s'",account);
 	if(mysql_query(&mysql,data))  printf( "false\n");
+}
+
+int del_send_offline_chat(char account[SIZE],int conn_fd)
+{
+	char data[1024];
+
+	sprintf(data,"delete from offline_chat where acceptaccount = '%s'",account);
+	if(mysql_query(&mysql,data))  printf( "false\n");
+
+}
+
+int send_offline_chat(char account[SIZE],int conn_fd)
+{
+	char data[1024];
+	char buf[1024];
+	char temp_name[SIZE];
+	int re;
+	msgnode msg;
+	
+	msg.flag = 11;
+
+
+	MYSQL_FIELD * field;
+        MYSQL_ROW row;
+        MYSQL_RES *result = NULL;
+	sprintf(data,"select msg,sendaccount  from offline_chat where acceptaccount = '%s'",account);
+	if(mysql_query(&mysql,data))  printf( "false\n");
+	result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+
+	if(result == NULL)   //若没有这个账号接受的消息 退出
+	{
+		printf( " 1796     结果集为空\n");
+		return 0;
+	}
+	Find_namebyaccount(account,msg.acceptname);
+	
+	while(row = mysql_fetch_row(result))
+	{
+		Find_namebyaccount(row[1],msg.sendname);
+		strcpy(msg.msg,row[0]);
+
+		memset(data,0,sizeof(data));
+		sprintf(data,"insert into friend_history values('%d','%s','%s','%s','%s','%s')",NULL,msg.sendaccount,msg.sendname,msg.acceptaccount,msg.acceptname,msg.msg);
+		mysql_query(&mysql,data);
+		//将消息发送给接受者
+		msg.flag = 11;
+		memset(buf,0,1024);    //初始化
+      	 	memcpy(buf,&msg,sizeof(msgnode));    //将结构体的内容转为字符串
+		if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
+	}
+
+
+	
+
+
+
+
+
+
+/*
+
+	//通过账号 找name
+	sprintf(data,"select name from login where account = '%s'",account);
+	mysql_query(&mysql,data);
+
+	result = mysql_store_result(&mysql);
+	row = mysql_fetch_row(result);
+	strcpy(msg.sendname,row[0]);
+	memset(data,0,sizeof(data));
+	sprintf(data,"select name from login where id = %d",msg.);
+	mysql_query(&mysql,data);
+
+	result = NULL;
+	result = mysql_store_result(&mysql);
+	row = mysql_fetch_row(result);
+	strcpy(msg.acceptname,row[0]);
+	// 在数据库通过 id 找到昵称
+	// 
+	//将消息保存下来
+	memset(data,0,sizeof(data));
+	sprintf(data,"insert into friend_history values('%d','%s','%s','%s','%s','%s')",NULL,msg.sendaccount,msg.sendname,msg.acceptaccount,msg.acceptname,msg.msg);
+	mysql_query(&mysql,data);
+	//将消息发送给接受者
+	msg.flag = 11;
+	memset(buf,0,1024);    //初始化
+      	memcpy(buf,&msg,sizeof(msgnode));    //将结构体的内容转为字符串
+	if((re = (send(msg.acceptfd,buf,1024,0))) < 0)  printf( "错误\n");
+*/
+
+}
+
+int Find_namebyaccount(char account[SIZE],char name[SIZE])
+{
+	char data[1024];
+	MYSQL_FIELD * field;
+        MYSQL_ROW row;
+        MYSQL_RES *result = NULL;
+	sprintf(data,"select name  from login where account = '%s'",account);
+	if(mysql_query(&mysql,data))  printf( "false\n");
+	result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+
+	if(result == NULL)   //若没有这个账号接受的消息 退出
+	{
+		printf( " 1796     结果集为空\n");
+		return 0;
+	}
+	row = mysql_fetch_row(result);
+
+	strcpy(name,row[0]);
+
+	return 0;
 }
