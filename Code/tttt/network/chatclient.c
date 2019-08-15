@@ -835,6 +835,7 @@ int write_file_friend(friendnode fid)
 	{
 		printf( "文件打开失败\n");
 	}
+	printf( "打开文件成功\n");
 	//写数据
 /*	int num = write(fd,&fid,sizeof(friendnode));
 	fprintf(stderr,"line%d \n",__LINE__);
@@ -844,7 +845,7 @@ int write_file_friend(friendnode fid)
 	{
 		printf( "写入失败\n");
 	}
-
+	printf( "写入成功\n");
 	close(fd);
 
 
@@ -1471,7 +1472,7 @@ int write_file_noc(noticenode noc)
 	int fd;
 	        //操作文件不正确 会 输出乱码
 		//
-	printf( "111111111111\n");
+//	printf( "111111111111\n");
 	if(!(fd = open("noc.txt",O_CREAT | O_WRONLY,0777)))
 	{
 		printf( "文件打开失败\n");
@@ -1512,6 +1513,8 @@ int Find_notice()   // 消息通知
 		getchar();
 		if(ch == 'N') break;
 		printf("%s\n",noc.noc);
+
+		num++;
 		sum = read(fd,&noc,sizeof(noticenode));
 	}
 
@@ -1554,5 +1557,5 @@ int Find_notice()   // 消息通知
 //	printf( "judgeee = %d\n",fid.flag);
 //	printf( "restt = %d\n",fid.result);
 
-	printf( "1111\n");
+//	printf( "1111\n");
 }
