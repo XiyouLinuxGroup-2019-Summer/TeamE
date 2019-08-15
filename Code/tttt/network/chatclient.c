@@ -107,6 +107,9 @@ typedef struct     //聊天结构体
 typedef struct
 {
         int flag;
+	int is_pep;
+	char sendaccount[SIZE];
+	char acceptaccount[SIZE];
         char noc[512];
 }noticenode;
 
@@ -885,6 +888,7 @@ void Find_freind(int conn_fd)
 		if(ch == 'Y')   fid.result = 1;
 		else  fid.result = 0;
 		fid.flag = 8;
+		fid.acceptid = inf.id;
 		memset(buf,0,1024);    //初始化                                                   
 	        memcpy(buf,&fid,sizeof(friendnode));    //将结构体的内容转为字符串
 	        if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
@@ -1512,6 +1516,10 @@ int Find_notice()   // 消息通知
 		scanf( "%c",&ch);
 		getchar();
 		if(ch == 'N') break;
+		if(noc.is_pep == 1)
+		{
+			printf( "%s  ",noc.acceptaccount);
+		}
 		printf("%s\n",noc.noc);
 
 		num++;

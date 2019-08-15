@@ -49,6 +49,9 @@ typedef struct
 typedef struct 
 {
 	int flag;
+	int is_pep;
+	char sendaccount[SIZE];
+	char acceptaccount[SIZE];
 	char noc[512];
 }noticenode;
 
@@ -141,6 +144,9 @@ pthread_mutex_t mutex;
 MYSQL mysql;
 MYSQL_RES *result;
 
+int del_send_offline_noc(char account[SIZE],int conn_fd);
+int del_send_offline_friend(char account[SIZE],int conn_fd);
+int send_offline_noc(char account[SIZE],int conn_fd);  //检查离线通知
 int send_offline_friend(char account[SIZE],int conn_fd);
 int insert_offline(char sendaccount[SIZE],char acceptaccount[SIZE],char buf[1024]);   //加入到 离线消息中
 int is_online(char account[SIZE]);    //判断是否在线
@@ -243,6 +249,8 @@ int main( )
 static void handle_events(int epfd,struct epoll_event *events,int num,int listenfd,char *buf)
 {
 	int i,fd;
+        online_node_t *curpos;
+
 	for(int i = 0;i < num;i++)
 	{
 		int fd = events[i].data.fd;
@@ -253,6 +261,16 @@ static void handle_events(int epfd,struct epoll_event *events,int num,int listen
 			//printf( "events %d\n",events[i].events);
 			if(events[i].events & EPOLLRDHUP)
 			{
+     	 		  List_ForEach(head,curpos)
+    			    {
+        		        if(curpos->fd == events[i].data.fd)
+               			{
+					List_DelNode(curpos);
+					printf( "删除成功\n");
+               		   		 break;
+               			}
+        		    }
+
 				printf( "断开连接\n");
 				epoll_ctl(epfd,EPOLL_CTL_DEL,fd,NULL);
 				continue;
@@ -507,6 +525,9 @@ int Account_login_persistence(loginnode log,int fd)    //登录
 	//printf( "re = %d\n",re);
 //	usleep(1000)	;
 	send_offline_friend(log.account,fd);
+	del_send_offline_friend(log.account,fd);
+	send_offline_noc(log.account,fd);
+	del_send_offline_noc(log.account,fd);
 	return flag;
 }
 int Account_updatapassword_persistence(loginnode log,int fd)
@@ -820,6 +841,7 @@ int friend_add_deal_persistence(friendnode fid)
 	//  处理好友
 	if(flag == 1)    
 	{
+		printf( "在线\n");
 		if(fid.result == 1)
 		{
 			sprintf(temp,"insert into friend values('%d','%d')",fid.sendid,fid.acceptid);
@@ -852,7 +874,21 @@ int friend_add_deal_persistence(friendnode fid)
 	}
 	else
 	{
-
+		printf( "离线\n");
+		if(fid.result == 1)
+		{
+			sprintf(temp,"insert into friend values('%d','%d')",fid.sendid,fid.acceptid);
+			if(mysql_query(&mysql,temp))     printf( "false\n");  //执行成功返回false  ,失败返回true
+			char tmp[] = "对方同意了你的请求";
+			sprintf(buf,"insert into offline_noc (sendaccount,acceptaccount,noc) values ('%s','%s','%s')",fid.sendaccount,fid.acceptaccount,tmp);
+			if(mysql_query(&mysql,buf))     printf( "false\n");  //执行成功返回false  ,失败返回true
+		}
+		else
+		{
+			char tmp[] = "对方拒绝了你的请求";
+			sprintf(buf,"insert into offline_noc (sendaccount,acceptaccount,noc) values ('%s','%s','%s')",fid.sendaccount,fid.acceptaccount,tmp);
+			if(mysql_query(&mysql,buf))     printf( "false\n");  //执行成功返回false  ,失败返回true
+		}
 	}
 
 
@@ -1679,4 +1715,56 @@ int send_offline_friend(char account[SIZE],int conn_fd)
 		if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");	
 	}
 
+}
+
+int send_offline_noc(char account[SIZE],int conn_fd)
+{
+	char data[1024];
+	char buf[1024];
+
+	int re;
+	noticenode noc;
+	noc.is_pep = 1;
+	noc.flag = 0;
+
+	MYSQL_FIELD * field;
+        MYSQL_ROW row;
+        MYSQL_RES *result = NULL;
+	sprintf(data,"select acceptaccount,noc  from offline_noc where sendaccount = '%s'",account);
+	if(mysql_query(&mysql,data))  printf( "false\n");
+	result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+
+	if(result == NULL)
+	{
+		printf( " 1728     结果集为空\n");
+		return 0;
+	}
+	while(row = mysql_fetch_row(result))
+	{
+		strcpy(noc.noc,row[1]);
+		strcpy(noc.sendaccount,account);
+		strcpy(noc.acceptaccount,row[0]);
+		memset(buf,0,sizeof(buf));
+		memcpy(buf,&noc,sizeof(noc));
+	
+		if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");	
+	}
+
+
+
+
+}
+int del_send_offline_friend(char account[SIZE],int conn_fd)
+{
+	char data[1024];
+
+	sprintf(data,"delete from offline_friend where acceptaccount = '%s'",account);
+	if(mysql_query(&mysql,data))  printf( "false\n");
+}
+int del_send_offline_noc(char account[SIZE],int conn_fd)
+{
+	char data[1024];
+
+	sprintf(data,"delete from offline_noc where sendaccount = '%s'",account);
+	if(mysql_query(&mysql,data))  printf( "false\n");
 }
