@@ -450,14 +450,14 @@ int *main_recv(void *arg)
 	while(1)
 	{
 
-		if((ret = recv(fd,p,1024,0)) < 0)  my_err("recv",__LINE__);
+		if((ret = recv(fd,p,1024,MSG_WAITALL)) < 0)  my_err("recv",__LINE__);
 		while(1)
 		{
 			if(ret != 1024)
 			{
 				lack = 1024 - ret;
 				for(int i = 0;i < ret;i++)  recv_buf[i] = *p++;
-				if((ret1 = recv(fd,p,1024,0)) < 0)  my_err("recv",__LINE__);
+				if((ret1 = recv(fd,p,1024,MSG_WAITALL)) < 0)  my_err("recv",__LINE__);
 				ret += ret1;
 			}
 			else break;

@@ -357,7 +357,7 @@ static void do_read(int epfd,int fd,char *buf)
 	memset(buf,0,1024);
 	memset(&log,0,sizeof(loginnode));
 
-	if((ret = recv(fd,p,1024,0)) < 0)
+	if((ret = recv(fd,p,1024,MSG_WAITALL)) < 0)
 	{
 		my_err("recv",__LINE__);
 		close(fd);
@@ -368,7 +368,7 @@ static void do_read(int epfd,int fd,char *buf)
 		{   
 			lack = 1024 - ret;
 			for(int i = 0;i < ret;i++)  buf[i] = *p++;
-			if((ret1 = recv(fd,p,1024,0)) < 0)  my_err("recv",__LINE__);
+			if((ret1 = recv(fd,p,1024,MSG_WAITALL)) < 0)  my_err("recv",__LINE__);
 			ret += ret1;
 		}   
 		else break;
@@ -2102,15 +2102,12 @@ int File_transfer_persistence(filenode file, int conn_fd)
                         break;
                 }
         }
-
+	
+	printf( "fd = %d\n",fd);
 	memset(buf,0,1024);    //初始化
       	memcpy(buf,&file,sizeof(filenode));    //将结构体的内容转为字符串
 	if((re = (send(fd,buf,1024,0))) < 0)  printf( "错误\n");
-	
-
-
-
-
-
+	perror(buf);
+	printf( "reeeeee   =%d\n",re);
 	return 0;
 }
