@@ -144,13 +144,19 @@ pthread_mutex_t mutex;
 MYSQL mysql;
 MYSQL_RES *result;
 
-int del_send_offline_chat(char account[SIZE],int conn_fd);   
-int send_offline_chat(char account[SIZE],int conn_fd);
-int Find_namebyaccount(char account[SIZE],char name[SIZE]);
-int del_send_offline_noc(char account[SIZE],int conn_fd);
-int del_send_offline_friend(char account[SIZE],int conn_fd);
-int send_offline_noc(char account[SIZE],int conn_fd);  //检查离线通知
-int send_offline_friend(char account[SIZE],int conn_fd);
+
+int del_send_offline_group_noc(char account[SIZE],int conn_fd);  
+int send_offline_group_noc(char account[SIZE],int conn_fd);
+int send_offline_group_add(char account[SIZE],int conn_fd);   //  离线群申请
+int del_send_offline_group_chat(char account[SIZE],int conn_fd);  //删除群离线消息
+int send_offline_group(char account[SIZE],int conn_fd);   //群离线消息
+int del_send_offline_chat(char account[SIZE],int conn_fd);   //删除聊天消息
+int send_offline_chat(char account[SIZE],int conn_fd);      //发送离线消息
+int Find_namebyaccount(char account[SIZE],char name[SIZE]);  //通过账号 找name
+int del_send_offline_noc(char account[SIZE],int conn_fd);    //删除离线通知
+int del_send_offline_friend(char account[SIZE],int conn_fd);   //删除 离线好友通知
+int send_offline_noc(char account[SIZE],int conn_fd);         //检查离线通知
+int send_offline_friend(char account[SIZE],int conn_fd);   //发送离线好友通知
 int insert_offline(char sendaccount[SIZE],char acceptaccount[SIZE],char buf[1024]);   //加入到 离线消息中
 int is_online(char account[SIZE]);    //判断是否在线
 int View_chat_group_history(historynode his,int conn_fd); //查看群 聊天记录
@@ -535,6 +541,13 @@ int Account_login_persistence(loginnode log,int fd)    //登录
 	del_send_offline_noc(log.account,fd);
 	send_offline_chat(log.account,fd);
 	del_send_offline_chat(log.account,fd);
+	send_offline_group(log.account,fd);
+	del_send_offline_group_chat(log.account,fd);
+	send_offline_group_add(log.account,fd);
+	send_offline_group_noc(log.account,fd);
+	del_send_offline_group_noc(log.account,fd); 
+
+
 	return flag;
 }
 int Account_updatapassword_persistence(loginnode log,int fd)
@@ -1278,11 +1291,20 @@ int join_group_persistence(groupnode grp,int conn_fd)
                 }
         }
 	//将消息发送 给群主
-	
-	grp.flag = 12;
-	memset(buf,0,1024);    //初始化
-      	memcpy(buf,&grp,sizeof(groupnode));    //将结构体的内容转为字符串
-	if((re = (send(fd,buf,1024,0))) < 0)  printf( "错误\n");
+	if(flag == 1)
+	{
+		grp.flag = 12;
+		memset(buf,0,1024);    //初始化
+	      	memcpy(buf,&grp,sizeof(groupnode));    //将结构体的内容转为字符串
+		if((re = (send(fd,buf,1024,0))) < 0)  printf( "错误\n");
+	}
+	else    //保存在数据库
+	{
+		memset(data,0,sizeof(data));
+		sprintf(data,"insert into offline_group_add values(%d,'%s','%s','%s','%s')",NULL,grp.group_account,grp.user_account,grp.user_name,account);
+		if(mysql_query(&mysql,data))   printf( "false 1299 \n"); 	
+
+	}
 	return 0;
 }
 
@@ -1310,6 +1332,8 @@ int is_group(groupnode grp)
 }
 int group_add_persistence(groupnode grp,int fd)
 {
+	int flag = 0;
+
 	noticenode noc;
 	noc.flag = 0;
 
@@ -1318,6 +1342,43 @@ int group_add_persistence(groupnode grp,int fd)
         MYSQL_ROW row;
         MYSQL_RES *result = NULL; 
 	int re;
+	// 如果在线  就获取 send 的套接字
+	
+  	online_node_t *curpos;
+
+	List_ForEach(head,curpos)
+        {
+		if(strcmp(curpos->account,grp.user_account) == 0)
+		{
+			flag = 1;
+			grp.sendfd = curpos->fd;
+			grp.id = curpos->id;
+		break;
+		}
+        }
+
+
+	if(flag == 0)
+	{
+		memset(data,0,sizeof(data));
+		char noc[100];
+
+		if(grp.result == 1)	strcpy(noc,"对方已接受您入群");
+		else	strcpy(noc,"对方已拒绝您入群");
+
+		printf( "account = %s\n",grp.group_account);
+		sprintf(data,"insert into offline_group_noc values(%d,'%s','%s','%s')",NULL,grp.group_account,grp.user_account,noc);
+		if(mysql_query(&mysql,data))
+		{
+			fprintf(stderr,"%s\n",mysql_error(&mysql));
+		};
+		return 0;
+	}
+	//
+	//
+	//
+	//
+	//
 	if(grp.result == 0)
 	{
 		sprintf(data," %s 对方已拒绝您入群 ",grp.group_name);
@@ -1327,7 +1388,7 @@ int group_add_persistence(groupnode grp,int fd)
 
                 memset(data,0,1024);    //初始化
                 memcpy(data,&noc,sizeof(noticenode));    //将结构体的内容转为字符串
-                if((re = (send(grp.sendfd,data,1024,0))) < 0)  printf( "错误\n");
+                if((re = (send(grp.sendfd,data,1024,0))) < 0)  printf( "123123错误\n");
 
 		return 0;
 	}
@@ -1355,10 +1416,6 @@ int group_add_persistence(groupnode grp,int fd)
         memset(data,0,1024);    //初始化
         memcpy(data,&noc,sizeof(noticenode));    //将结构体的内容转为字符串
         if((re = (send(grp.sendfd,data,1024,0))) < 0)  printf( "错误\n");
-
-
-
-
 
 	return 0;
 }
@@ -1568,7 +1625,7 @@ int chat_group_persistence(msgnode msg,int fd)
         MYSQL_ROW row;
         MYSQL_RES *result = NULL;
         MYSQL_RES *result1 = NULL;
-	//过去 发送者 的名字
+	//获取 发送者 的名字
 	sprintf(data,"select name from login where id = %d",msg.sendid);
 	mysql_query(&mysql,data);
 	result1 = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
@@ -1587,6 +1644,7 @@ int chat_group_persistence(msgnode msg,int fd)
 
 	while(row = mysql_fetch_row(result))
 	{
+		strcpy(msg.acceptaccount,row[0]);
   	      online_node_t *curpos;
 
 	      List_ForEach(head,curpos)
@@ -1602,11 +1660,20 @@ int chat_group_persistence(msgnode msg,int fd)
 
 	      if(flag == 1)
 	      {
+		      printf( "11111\n");
 		        msg.flag = 15;
 			memset(buf,0,1024);    //初始化
 	      	 	memcpy(buf,&msg,sizeof(msgnode));    //将结构体的内容转为字符串
 			if((re = (send(msg.acceptfd,buf,1024,0))) < 0)  printf( "错误\n");
 	      }
+	      else
+	      {
+		      printf( "2222\n");
+		        memset(data,0,sizeof(data));
+			sprintf(data,"insert into offline_group values(%d,'%s','%s','%s','%s','%s')",NULL,msg.group_account,msg.acceptaccount,msg.sendaccount,msg.sendname,msg.msg);
+			if(mysql_query(&mysql,data))   printf( "false\n");
+	      }
+
 
 	}
         
@@ -1614,7 +1681,7 @@ int chat_group_persistence(msgnode msg,int fd)
 }
 int View_chat_friend_history(historynode his,int conn_fd)
 {
-	char data[1024];
+ 	char data[1024];
 	char buf[1024];
 	int re;
 	MYSQL_FIELD * field;
@@ -1708,17 +1775,14 @@ int send_offline_friend(char account[SIZE],int conn_fd)
         MYSQL_ROW row;
         MYSQL_RES *result = NULL;
 	sprintf(data,"select sendaccount  from offline_friend where acceptaccount = '%s'",account);
+	
 	printf( "account = %s\n",account);
 	if(mysql_query(&mysql,data))  printf( "false\n");
 	result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
 
-	if(result == NULL)
-	{
-		printf( " 1644     结果集为空\n");
-		return 0;
-	}
 	while(row = mysql_fetch_row(result))
 	{
+		if(NULL == row)   break;
 		strcpy(fid.sendaccount,row[0]);
 		strcpy(fid.acceptaccount,account);
 		printf( "fid.sendaccount = %s \n ",fid.sendaccount);
@@ -1790,6 +1854,26 @@ int del_send_offline_chat(char account[SIZE],int conn_fd)
 	if(mysql_query(&mysql,data))  printf( "false\n");
 
 }
+int del_send_offline_group_chat(char account[SIZE],int conn_fd)
+{
+	char data[1024];
+
+	sprintf(data,"delete from offline_group where acceptaccount = '%s'",account);
+	if(mysql_query(&mysql,data))  printf( "false\n");
+
+	return 0;
+}
+int del_send_offline_group_noc(char account[SIZE],int conn_fd)
+{
+	char data[1024];
+	
+	sprintf(data,"delete from offline_group_noc where sendaccount = '%s'",account);
+	if(mysql_query(&mysql,data))  printf( "false\n");
+
+	return 0;
+
+
+}
 
 int send_offline_chat(char account[SIZE],int conn_fd)
 {
@@ -1830,47 +1914,121 @@ int send_offline_chat(char account[SIZE],int conn_fd)
       	 	memcpy(buf,&msg,sizeof(msgnode));    //将结构体的内容转为字符串
 		if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
 	}
+}
 
-
+int send_offline_group(char account[SIZE],int conn_fd)
+{
+	char data[1024];
+	char buf[1024];
+	char temp_name[SIZE];
+	int re;
+	msgnode msg;
 	
+	msg.flag = 15;
 
 
+	MYSQL_FIELD * field;
+        MYSQL_ROW row;
+        MYSQL_RES *result = NULL;
+	sprintf(data,"select msg,sendaccount,sendname,group_account from offline_group where acceptaccount = '%s'",account);
+	if(mysql_query(&mysql,data))  printf( "false\n");
+	result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
 
+	if(result == NULL)   //若没有这个账号接受的消息 退出
+	{
+		printf( " 1796     结果集为空\n");
+		return 0;
+	}
+	
+	while(row = mysql_fetch_row(result))
+	{
+	//	Find_namebyaccount(row[1],msg.sendname);
+		strcpy(msg.msg,row[0]);
+		strcpy(msg.sendaccount,row[1]);
+		strcpy(msg.sendname,row[2]);
+		strcpy(msg.group_account,row[3]);
+		memset(data,0,sizeof(data));
+		sprintf(data,"insert into group_history values('%d','%s','%s','%s','%s')",NULL,msg.group_account,msg.sendaccount,msg.sendname,msg.msg);
+		mysql_query(&mysql,data);
+		//将消息发送给接受者
+		msg.flag = 15;
+		memset(buf,0,1024);    //初始化
+      	 	memcpy(buf,&msg,sizeof(msgnode));    //将结构体的内容转为字符串
+		if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
+	}
 
-
-
-/*
-
-	//通过账号 找name
-	sprintf(data,"select name from login where account = '%s'",account);
-	mysql_query(&mysql,data);
-
-	result = mysql_store_result(&mysql);
-	row = mysql_fetch_row(result);
-	strcpy(msg.sendname,row[0]);
-	memset(data,0,sizeof(data));
-	sprintf(data,"select name from login where id = %d",msg.);
-	mysql_query(&mysql,data);
-
-	result = NULL;
-	result = mysql_store_result(&mysql);
-	row = mysql_fetch_row(result);
-	strcpy(msg.acceptname,row[0]);
-	// 在数据库通过 id 找到昵称
-	// 
-	//将消息保存下来
-	memset(data,0,sizeof(data));
-	sprintf(data,"insert into friend_history values('%d','%s','%s','%s','%s','%s')",NULL,msg.sendaccount,msg.sendname,msg.acceptaccount,msg.acceptname,msg.msg);
-	mysql_query(&mysql,data);
-	//将消息发送给接受者
-	msg.flag = 11;
-	memset(buf,0,1024);    //初始化
-      	memcpy(buf,&msg,sizeof(msgnode));    //将结构体的内容转为字符串
-	if((re = (send(msg.acceptfd,buf,1024,0))) < 0)  printf( "错误\n");
-*/
 
 }
 
+int send_offline_group_add(char account[SIZE],int conn_fd)
+{
+
+	char data[1024];
+	char buf[1024];
+	char temp_name[SIZE];
+	int re;
+	
+	groupnode grp;
+	grp.flag = 12;
+
+	MYSQL_FIELD * field;
+        MYSQL_ROW row;
+        MYSQL_RES *result = NULL;
+	sprintf(data,"select sendaccount,sendname,group_account from offline_group_add where account = '%s'",account);
+	if(mysql_query(&mysql,data))  printf( "false\n");
+	result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+
+	if(result == NULL)   //若没有这个账号接受的消息 退出
+	{
+		printf( " 1796     结果集为空\n");
+		return 0;
+	}
+	row = mysql_fetch_row(result);
+	if(row == NULL)   return 0;
+	strcpy(grp.user_account,row[0]);
+	strcpy(grp.user_name,row[1]);
+	strcpy(grp.group_account,row[2]);
+
+	memset(buf,0,1024);    //初始化
+      	memcpy(buf,&grp,sizeof(groupnode));    //将结构体的内容转为字符串
+	if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
+
+}
+
+int send_offline_group_noc(char account[SIZE],int conn_fd)
+{
+
+	char data[1024];
+	char buf[1024];
+	char temp_name[SIZE];
+	int re;
+	
+	noticenode noc;
+	noc.flag = 0;
+
+	MYSQL_FIELD * field;
+        MYSQL_ROW row;
+        MYSQL_RES *result = NULL;
+	sprintf(data,"select group_account,msg from offline_group_noc where sendaccount = '%s'",account);
+	if(mysql_query(&mysql,data))  printf( "false\n");
+	result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+
+	if(result == NULL)   //若没有这个账号接受的消息 退出
+	{
+		printf( " 1796     结果集为空\n");
+		return 0;
+	}
+	row = mysql_fetch_row(result);
+	if(row == NULL)   return 0;
+	strcpy(noc.acceptaccount,row[0]);
+	printf("account = %s\n",noc.acceptaccount);
+	strcpy(noc.noc,row[1]);
+	noc.is_pep = 1;
+	memset(buf,0,1024);    //初始化
+      	memcpy(buf,&noc,sizeof(noticenode));    //将结构体的内容转为字符串
+	if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
+
+}
 int Find_namebyaccount(char account[SIZE],char name[SIZE])
 {
 	char data[1024];
@@ -1892,3 +2050,5 @@ int Find_namebyaccount(char account[SIZE],char name[SIZE])
 
 	return 0;
 }
+
+

@@ -132,10 +132,12 @@ typedef struct
 int Flag;    //判断接收到的信息  的flag
 char chat[1024];
 informationnode inf;  //创建一个存储用户信息的结构体  一旦登录 就 保存了 本用户的 id 和账号
-char currentaccount[SIZE];
+char currentaccount[SIZE];//   表示当前在和谁聊天
+char currentgroup[SIZE];    //表示当前在和那个组聊天
 pthread_mutex_t mutex;  //创建一把锁
 pthread_cond_t cond;    //创建一个信号
 
+int Find_group_chat();
 int Find_chat();
 int write_file_noc(noticenode noc);
 int Find_notice();   // 消息通知
@@ -640,8 +642,8 @@ int major_UI(int conn_fd)
 		printf( "[4]  传送文件\n");
 		printf( "[5]  修改信息\n");
 		printf( "[6]  查看用户信息\n");
-		printf( "[7]  查看消息通知\n");
-		printf( "[8]  查看系统通知");
+		printf( "[7]  查看好友消息通知\n");
+		printf( "[8]  查看系统通知\n");
 		printf( "[9]  退出\n");
 	
 		printf( "请输入选项 :");
@@ -1007,8 +1009,10 @@ int  Chat_communication_UI(int conn_fd)
 		printf("[3]  查看聊天记录\n");
 		printf("[4]  离线消息\n");
 		printf("[5]  屏蔽某人消息\n");
-		printf("[6]  查看消息\n");
-		printf("[7]  退出\n");
+		printf("[6]  查看好友消息\n");
+		printf("[7]  查看群聊消息\n");
+		printf("[8]  查看群通知\n");
+		printf("[9]  退出\n");
 		printf( "请输入选项:");
 		scanf( "%d",&command);
 		getchar();
@@ -1032,11 +1036,15 @@ int  Chat_communication_UI(int conn_fd)
 			case 6:
 				Find_chat();
 				break;
+			case 7:Find_group_chat();
+			       break;
+			case 8:
+			       break;
 			default:
 				printf( "选项错误\n");
 		}
 
-	}while(command != 7);
+	}while(command != 9);
 }
 int Private_chat_send(int conn_fd)
 {
@@ -1279,7 +1287,7 @@ int deal_group(int conn_fd)
 
 	while(!feof(fpsour))
 	{
-		if(fread(&temp,sizeof(friendnode),1,fpsour))
+		if(fread(&temp,sizeof(groupnode),1,fpsour))
 		{
 			if(num)  
 			{
@@ -1320,9 +1328,8 @@ int write_file_group(groupnode grp)
 	close(fd);
 }
 
-int Setup_administrator(int conn_fd)
+int Setup_administrator(int conn_fd)  //设置管理员
 {
-
 	char buf[1024];
 	int re;
 	groupnode grp;
@@ -1430,6 +1437,8 @@ int group_chat(int conn_fd)
 	
 	printf( "请输入你想要进入的群聊账号\n");
 	gets(msg.group_account);
+	strcpy(currentgroup,msg.group_account);
+
 	printf( "输入 qwe 退出群聊!\n");
 	msg.sendid = inf.id;
 	msg.sendfd = conn_fd;
@@ -1444,12 +1453,40 @@ int group_chat(int conn_fd)
 		memcpy(buf,&msg,sizeof(msgnode));
 		if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
 	}while(strcmp("qwe",msg.msg) != 0);
+	
+	strcpy(currentgroup," ");
+
 
 	return 0;
 }
 int group_chat_accept(msgnode msg)
 {
-	printf( "name = %s  发送 :%s\n",msg.sendname,msg.msg);
+	if(strcmp(msg.group_account,currentaccount) == 0)
+	{
+		printf( "group = %s\n",msg.group_account);
+		printf( "curr = %s\n",currentaccount);
+
+		printf( "name = %s  发送 :%s\n",msg.sendname,msg.msg);
+	}
+	else
+	{
+		int fd;
+		        //操作文件不正确 会 输出乱码
+		if(!(fd = open("group_chat.txt",O_CREAT | O_APPEND | O_WRONLY,0777)))
+		{
+			printf( "文件打开失败\n");
+		}
+	
+		//写数据
+		//
+		if(write(fd,&msg,sizeof(msgnode)) != sizeof(msgnode))
+		{
+			printf( "写入失败\n");
+		}
+	
+		close(fd);
+	
+	}
 
 }
 
@@ -1658,7 +1695,6 @@ int Find_chat()
 		{
 			if(num)  
 			{
-				printf( "123123123123\n");
 				num--;
 				continue;
 			}
@@ -1673,5 +1709,74 @@ int Find_chat()
 	fclose(fpsour);
 	
 	remove("chat.txt_temp");
+
+}
+int Find_group_chat()
+{
+	int num = 0;
+	char ch;
+	char buf[1024];
+
+	msgnode msg;
+
+	int fd;
+	if((fd = open("group_chat.txt",O_CREAT | O_APPEND,S_IRUSR | S_IWUSR)) == -1)
+	{
+		printf( "文件打开失败\n");
+	}
+	
+	int sum = read(fd,&msg,sizeof(msgnode));
+	printf( "sum = %d\n",sum);
+	while(sum != 0)
+	{
+		printf( "是否还想继续阅读 好友消息\n");
+		printf("Y / N:");
+		scanf( "%c",&ch);
+		getchar();
+		if(ch == 'N') break;
+		
+		printf("name = %s 发送:%s\n",msg.sendname,msg.msg);
+		printf( "num = %d\n",num);
+		num++;
+		sum = read(fd,&msg,sizeof(msgnode));
+		printf( "sum = %d\n",sum);
+	}
+
+	if(sum == 0)   printf( "无通知\n");
+	close(fd);
+	
+	//删除 已读 数据
+	if(rename("group_chat.txt","group_chat.txt_temp") < 0)   printf( "776 错误\n");
+
+	FILE *fpsour,*fptarg;
+
+	fpsour = fopen("group_chat.txt_temp","rb");
+	if(NULL == fpsour)   printf( "不能打开文件 781\n");
+
+	fptarg = fopen("group_chat.txt","wb");
+	if(NULL == fptarg)    printf( "不能打开文件  784\n");
+	
+	msgnode  temp;
+
+	while(!feof(fpsour))
+	{
+		if(fread(&temp,sizeof(msgnode),1,fpsour))
+		{
+			if(num)  
+			{
+				num--;
+				continue;
+			}
+			else
+			{
+				fwrite(&temp,sizeof(msgnode),1,fptarg);
+			}
+		}
+	}
+
+	fclose(fptarg);
+	fclose(fpsour);
+	
+	remove("group_chat.txt_temp");
 
 }
