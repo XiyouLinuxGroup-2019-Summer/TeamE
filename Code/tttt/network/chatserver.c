@@ -498,7 +498,7 @@ int Account_login_persistence(loginnode log,int fd)    //登录
 	char buf[1024];
 	char data[1024];
 
-	printf( "登录\n");
+	printf( "尝试登录\n");
 	//登录时更新状态
 	char temp[1000];
 	sprintf(temp,"update login set online = 0 where id = '%d'",log.id);
@@ -537,24 +537,14 @@ int Account_login_persistence(loginnode log,int fd)    //登录
 		temp->id = log.id;
 		List_AddHead(head,temp);
 	}
-//	printf( "登录  flag = %d\n",flag);
 	log.result = flag;
 
-//	noc.flag = 1;
-//	if(log.result == 1) 	strcpy(noc.noc,"登录成功\n");
-//	else  strcpy(noc.noc,"登录失败\n");
 
-        memset(buf,0,1024);    //初始化
-        memcpy(buf,&log,sizeof(loginnode));    //将结构体的内容转为字符串
+  memset(buf,0,1024);    //初始化
+  memcpy(buf,&log,sizeof(loginnode));    //将结构体的内容转为字符串
 	
-/*	if(!is_online(log.account))	
-	{
-		insert_offline("1",log.account,buf);
-		return flag;
-	}*/
-        if((re = (send(fd,buf,1024,0))) < 0)  printf( "错误\n"); 	
-	//printf( "re = %d\n",re);
-//	usleep(1000)	;
+  if((re = (send(fd,buf,1024,0))) < 0)  printf( "错误\n"); 	
+
 	send_offline_friend(log.account,fd);
 	del_send_offline_friend(log.account,fd);
 	send_offline_noc(log.account,fd);
@@ -1288,6 +1278,7 @@ int join_group_persistence(groupnode grp,int conn_fd)
 	grp.group_id = atoi(row[1]);
 	strcpy(grp.group_name,row[2]);
 	//通过群主的 id  找到 群主的账号
+	printf("sadasda\n");
 	result = NULL;
 	memset(row,0,sizeof(MYSQL_ROW));
 	memset(data,0,sizeof(data));
@@ -1306,6 +1297,7 @@ int join_group_persistence(groupnode grp,int conn_fd)
                 if(strcmp(curpos->account,account) == 0)
                 {
                         flag = 1;
+												printf("群主在线\n");
                         fd = curpos->fd;
                         break;
                 }
@@ -1314,6 +1306,7 @@ int join_group_persistence(groupnode grp,int conn_fd)
 	if(flag == 1)
 	{
 		grp.flag = 12;
+		printf("发送给群主");
 		memset(buf,0,1024);    //初始化
 	      	memcpy(buf,&grp,sizeof(groupnode));    //将结构体的内容转为字符串
 		if((re = (send(fd,buf,1024,0))) < 0)  printf( "错误\n");
@@ -1712,9 +1705,16 @@ int View_chat_friend_history(historynode his,int conn_fd)
 	if(mysql_query(&mysql,data))  printf( "false\n");
 	result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
 
-	if(result == NULL)   printf( " 1478     结果集为空\n");
+	if(result == NULL) 
+	 {
+	 				printf( " 1710   行   结果集为空\n");
+					 printf("无内容\n");
+	 				return 0;
+	 }
 	while(row = mysql_fetch_row(result))
 	{
+		if(row == NULL) 	break;
+		
 			strcpy(his.sendname,row[0]);
 			strcpy(his.acceptname,row[1]);
 			strcpy(his.message,row[2]);
@@ -1723,7 +1723,6 @@ int View_chat_friend_history(historynode his,int conn_fd)
 	      	 	memcpy(buf,&his,sizeof(historynode));    //将结构体的内容转为字符串
 			if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
 	}
-
 
 
 }
@@ -1792,8 +1791,8 @@ int send_offline_friend(char account[SIZE],int conn_fd)
 	fid.flag = 7;
 
 	MYSQL_FIELD * field;
-        MYSQL_ROW row;
-        MYSQL_RES *result = NULL;
+  MYSQL_ROW row;
+	MYSQL_RES *result = NULL;
 	sprintf(data,"select sendaccount  from offline_friend where acceptaccount = '%s'",account);
 	
 	printf( "account = %s\n",account);
@@ -1838,6 +1837,8 @@ int send_offline_noc(char account[SIZE],int conn_fd)
 	}
 	while(row = mysql_fetch_row(result))
 	{
+		
+		if(NULL == row)   break;
 		strcpy(noc.noc,row[1]);
 		strcpy(noc.sendaccount,account);
 		strcpy(noc.acceptaccount,row[0]);
@@ -1915,13 +1916,13 @@ int send_offline_chat(char account[SIZE],int conn_fd)
 
 	if(result == NULL)   //若没有这个账号接受的消息 退出
 	{
-		printf( " 1796     结果集为空\n");
+		printf( " 1910     结果集为空\n");
 		return 0;
 	}
 	Find_namebyaccount(account,msg.acceptname);
-	
 	while(row = mysql_fetch_row(result))
 	{
+		if(NULL == row)   break;
 		Find_namebyaccount(row[1],msg.sendname);
 		strcpy(msg.msg,row[0]);
 
@@ -1962,6 +1963,7 @@ int send_offline_group(char account[SIZE],int conn_fd)
 	
 	while(row = mysql_fetch_row(result))
 	{
+		if(NULL == row)   break;
 	//	Find_namebyaccount(row[1],msg.sendname);
 		strcpy(msg.msg,row[0]);
 		strcpy(msg.sendaccount,row[1]);
@@ -2066,6 +2068,7 @@ int Find_namebyaccount(char account[SIZE],char name[SIZE])
 	}
 	row = mysql_fetch_row(result);
 
+		if(NULL == row)   return 0;
 	strcpy(name,row[0]);
 
 	return 0;

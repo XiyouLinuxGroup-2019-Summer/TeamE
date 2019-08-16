@@ -216,32 +216,20 @@ int main(int argc,char **argv)
 	if(setsockopt(conn_fd,SOL_SOCKET,SO_REUSEADDR,(void *) &optval,sizeof(int)) < 0)  my_err("setsockopt",__LINE__);
 
 	if(conre = connect(conn_fd,(struct sockaddr *)&serv_addr,sizeof(struct sockaddr)) < 0)   my_err("connect",__LINE__);
-
-	printf( "conre = %d\n",conre);
+	if(conre == 0)	printf( " 连接服务器成功...\n");
+		else 
+		{
+			printf("连接服务器失败...\n");
+			return 0;
+		}
 	if(pthread_create(&tid,NULL,(void *)main_recv,(void *)pthread_conn_fd) != 0)
 	{
 		perror("recv pthread\n");
 		exit(1);
 	}
 
-//	while(1)
-	{
 		int re;
 		login_connect(conn_fd);
-		//gets(chat);
-		//getchar();
-		//getchar();
-	//	if((ret = (send(conn_fd,chat,strlen(chat) + 1,0))) < 0)
-	//	{
-	//		printf( "错误 \n");
-	//	}
-
-	//	printf( "ret1 = %d\n ",ret);
-//		if(( re = send(conn_fd,chat,strlen(chat),0)) < 0)  my_err("client send err",__LINE__);
-	//	login_connect(conn_fd);
-//		if(strcmp(chat,"exit") == 0)  break;
-//		memset(chat,0,sizeof(chat));
-	}
 
 	close(conn_fd);
 
@@ -371,7 +359,7 @@ int Account_login_UI(int conn_fd)
 	memcpy(buf,&log,sizeof(loginnode));    //将结构体的内容转为字符串
 	if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");	
 	
-	printf( "加锁\n");
+	//printf( "加锁\n");
 	pthread_mutex_lock(&mutex);   //加锁  ,对全局变量进行操作
         pthread_cond_wait(&cond,&mutex);
 	result = Flag;
@@ -380,7 +368,7 @@ int Account_login_UI(int conn_fd)
 	
 	strcpy(inf.account,log.account);
 
-	printf( "login re = %d\n",re);
+	//printf( "login re = %d\n",re);
 
 	return result;
 }
@@ -462,7 +450,7 @@ int *main_recv(void *arg)
 			}
 			else break;
 		}
-		printf( "输出\n");
+		//printf( "输出\n");
 //		printf( "main_ret = %d\n",ret);
 		strncpy(anly,recv_buf,sizeof(int));
 	//	printf( "解析之前flag = %d\n",log.flag);
@@ -508,8 +496,8 @@ int *main_recv(void *arg)
 			case 26:
 				memcpy(&file,recv_buf,sizeof(filenode));break;
 		}
-		printf( "judge = %d\n",judge);
-		printf( "result = %d\n",log.result);
+		//printf( "judge = %d\n",judge);
+		//printf( "result = %d\n",log.result);
 		pthread_mutex_lock(&mutex);
 		switch(judge)
 		{
@@ -520,7 +508,7 @@ int *main_recv(void *arg)
 				if(log.result == 1)
 				{
 					printf( "登录成功\n");
-					printf( "log.id = %d\n",log.id);
+					printf( "登录id  为 %d\n",log.id);
 					inf.id = log.id;
 					Flag = 1;
 				}
@@ -658,8 +646,8 @@ int major_UI(int conn_fd)
 		printf( "[4]  传送文件\n");
 		printf( "[5]  修改信息\n");
 		printf( "[6]  查看用户信息\n");
-		printf( "[7]  查看好友消息通知\n");
-		printf( "[8]  查看系统通知\n");
+		printf( "[7]  查看好友普通消息通知\n");
+		printf( "[8]  查看系统消息通知\n");
 		printf( "[9]  接受文件\n");
 		printf( "[10]  退出\n");
 	
@@ -1028,8 +1016,8 @@ int  Chat_communication_UI(int conn_fd)
 		printf("[3]  查看聊天记录\n");
 		printf("[4]  离线消息\n");
 		printf("[5]  屏蔽某人消息\n");
-		printf("[6]  查看好友消息\n");
-		printf("[7]  查看群聊消息\n");
+		printf("[6]  查看好友聊天消息\n");
+		printf("[7]  查看群聊聊天消息\n");
 		printf("[8]  查看群通知\n");
 		printf("[9]  退出\n");
 		printf( "请输入选项:");
