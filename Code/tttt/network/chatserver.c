@@ -1139,6 +1139,8 @@ int Pravite_chat_send_persistence(msgnode msg,int conn_fd)
 
 		//将消息保存下来
 		memset(data,0,sizeof(data));
+
+		printf("asdasdasdas\n");
 		sprintf(data,"insert into friend_history values('%d','%s','%s','%s','%s','%s')",NULL,msg.sendaccount,msg.sendname,msg.acceptaccount,msg.acceptname,msg.msg);
 		mysql_query(&mysql,data);
 		//将消息发送给接受者
@@ -1700,6 +1702,8 @@ int View_chat_friend_history(historynode his,int conn_fd)
 	MYSQL_FIELD * field;
         MYSQL_ROW row;
         MYSQL_RES *result = NULL;
+
+	printf( "account = %s\nsendaccount = %s\n",his.acceptaccount,his.sendaccount);
 	sprintf(data,"select sendname,acceptname,message  from friend_history where (acceptaccount = '%s'  && sendaccount = '%s') || (acceptaccount = '%s'  && sendaccount = '%s' )",his.acceptaccount,his.sendaccount,his.sendaccount,his.acceptaccount );
 	
 	if(mysql_query(&mysql,data))  printf( "false\n");

@@ -140,6 +140,7 @@ int Flag;    //判断接收到的信息  的flag
 char chat[1024];
 informationnode inf;  //创建一个存储用户信息的结构体  一旦登录 就 保存了 本用户的 id 和账号
 char currentaccount[SIZE];//   表示当前在和谁聊天
+char currentaccount2[SIZE];
 char currentgroup[SIZE];    //表示当前在和那个组聊天
 pthread_mutex_t mutex;  //创建一把锁
 pthread_cond_t cond;    //创建一个信号
@@ -228,7 +229,8 @@ int main(int argc,char **argv)
 		exit(1);
 	}
 
-		int re;
+		int re;	
+
 		login_connect(conn_fd);
 
 	close(conn_fd);
@@ -242,6 +244,7 @@ int login_connect(int conn_fd)
 	int success = 0;    //判断是否成功进行操作  1为成功,2 为失败
 	do
 	{
+		system("clear");
 		printf( "欢迎使用chat\n");
 		printf( "[1]  登录\n");
 		printf( "[2]  注册\n");
@@ -640,6 +643,7 @@ int major_UI(int conn_fd)
 	int command;
 	do
 	{
+		system("clear");
 		printf( "[1]  好友管理\n");
 		printf( "[2]  聊天通信\n");
 		printf( "[3]  群管理\n");
@@ -693,6 +697,7 @@ int major_UI(int conn_fd)
 }
 int Modity_information_UI(int fd)
 {
+		system("clear");
  	 int re;
 	 int result;
 	 inf.flag = 5;
@@ -750,6 +755,7 @@ int Friend_management_UI(int conn_fd)
 	int command;
 	do
 	{
+		system("clear");
 		printf( "[1]  添加好友\n");
 		printf( "[2]  删除好友\n");
 		printf( "[3]  查看所有好友\n");
@@ -821,25 +827,7 @@ int offonline(int fd)
 }
 
 
-/*int friend_add_accept_UI(friendnode fid,int fd)
-{
-	char buf[1024];
-	int re;
-	//while(getchar() != '\n');
-	printf( "账号为:%s请求加为好友!\n",fid.sendaccount);
-	printf("是否同意 ? \n");
-	printf( " 1 同意   0 不同意\n");
-	scanf( "%d",&fid.result);
-	printf( "friend_add_result = %d\n",fid.result);
-	
 
-	memset(buf,0,1024);    //初始化        
-	fid.flag = 8;
-        memcpy(buf,&fid,sizeof(friendnode));    //将结构体的内容转为字符串
-        if((re = (send(fd,buf,1024,0))) < 0)  printf( "错误\n");
-	
-}
-*/
 int write_file_friend(friendnode fid)
 {
 	int fd;
@@ -848,17 +836,12 @@ int write_file_friend(friendnode fid)
 	{
 		printf( "文件打开失败\n");
 	}
-	printf( "打开文件成功\n");
 	//写数据
-/*	int num = write(fd,&fid,sizeof(friendnode));
-	fprintf(stderr,"line%d \n",__LINE__);
-	perror("write");
-	printf( "num = %d\n",num);*/
+	
 	if(write(fd,&fid,sizeof(friendnode)) != sizeof(friendnode))
 	{
 		printf( "写入失败\n");
 	}
-	printf( "写入成功\n");
 	close(fd);
 
 
@@ -1010,6 +993,8 @@ int  Chat_communication_UI(int conn_fd)
 
 	do
 	{
+
+		system("clear");
 		printf("***** 聊天通信 *****\n");
 		printf("[1]  私聊\n");
 		printf("[2]  群聊\n");
@@ -1026,6 +1011,9 @@ int  Chat_communication_UI(int conn_fd)
 		switch(command)
 		{
 			case 1:
+
+				Friend_view_UI(conn_fd);
+				usleep(1000);
 				Private_chat_send(conn_fd);
 				break;
 			case 2:
@@ -1063,15 +1051,13 @@ int Private_chat_send(int conn_fd)
 	gets(msg.acceptaccount);
 
 	strcpy(currentaccount,msg.acceptaccount);   //标记当前在和谁聊天
-
+	printf("current = %s\n",currentaccount);
 	msg.sendid = inf.id;
 	msg.sendfd = conn_fd;
 	strcpy(msg.sendaccount,inf.account);
 	msg.flag = 12;
 	
-//	memset(buf,0,1024);    //初始化 
-//	memcpy(buf,&fid,sizeof(friendnode));    //将结构体的内容转为字符串
-//	if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
+
 	printf( "输入 qwe 退出聊天.\n");
 	do
 	{
@@ -1092,8 +1078,7 @@ int Private_chat_accept(msgnode msg)
 {
 	//判断是否 在和当前 这个人聊天  通过账号判断
 	//  是 将消息打印到屏幕
-	
-	if(strcmp(msg.sendaccount,currentaccount) == 0)
+	if(strcmp(inf.account,currentaccount) == 0)
 	{
 		printf("name = %s 发送:%s\n",msg.sendname,msg.msg);
 	}
@@ -1107,10 +1092,7 @@ int Private_chat_accept(msgnode msg)
 			printf( "文件打开失败\n");
 		}
 		//写数据
-		/*	int num = write(fd,&fid,sizeof(friendnode));
-		fprintf(stderr,"line%d \n",__LINE__);
-		perror("write");
-		printf( "num = %d\n",num);*/
+
 		int re = 1;
 		if((re = write(fd,&msg,sizeof(msgnode))) != sizeof(msgnode))
 		{
@@ -1148,6 +1130,7 @@ int Group_management_UI(int conn_fd)
 
 	do
 	{
+		system("clear");
 		printf( "[1]   创建群\n");
 		printf( "[2]   加群\n");   //群人数 +1
 		printf( "[3]   退群\n");   //群人数 -1
@@ -1271,7 +1254,7 @@ int deal_group(int conn_fd)
 	        memcpy(buf,&grp,sizeof(groupnode));    //将结构体的内容转为字符串
 	        if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
 		num++;     //记录已读 的几条消息  一会删除的 前 num 条消息
-		//	fid.result = 1;   //将本地的 reslut 改为1 代表已经 读 过这条消息
+
 
 		sum = read(fd,&grp,sizeof(groupnode));
 	}
@@ -1312,8 +1295,6 @@ int deal_group(int conn_fd)
 	fclose(fpsour);
 	
 	remove("group.txt_temp");
-//	printf( "judgeee = %d\n",fid.flag);
-//	printf( "restt = %d\n",fid.result);
 
 }
 int write_file_group(groupnode grp)
@@ -1557,7 +1538,6 @@ int write_file_noc(noticenode noc)
 	int fd;
 	        //操作文件不正确 会 输出乱码
 		//
-//	printf( "111111111111\n");
 	if(!(fd = open("noc.txt",O_CREAT | O_APPEND | O_WRONLY,0777)))
 	{
 		printf( "文件打开失败\n");
@@ -1643,10 +1623,7 @@ int Find_notice()   // 消息通知
 	fclose(fpsour);
 	
 	remove("noc.txt_temp");
-//	printf( "judgeee = %d\n",fid.flag);
-//	printf( "restt = %d\n",fid.result);
 
-//	printf( "1111\n");
 }
 
 int Find_chat()
@@ -1809,16 +1786,8 @@ int File_transfer_UI(int conn_fd)
 
 	printf( "fd = %d\n",fd);
 	file.flag = 26;
-/*	fp = fopen(file.pathname,"rt+");
-	
-	printf( "11111\n");
-	sum = fread(file.file,sizeof(file.file),1,fp);
 	
 
-	printf( "sum = %d\n",sum);
-
-	printf( "33333\n");*/
-	
 	sum = read(fd,file.file,sizeof(file.file));
 	file.len = sum;
 	printf( "sum = %d\n",sum);
@@ -1828,7 +1797,8 @@ int File_transfer_UI(int conn_fd)
 		memset(buf,0,1024);
 		memcpy(buf,&file,sizeof(filenode));
 		if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
-		//sum = fread(file.file,sizeof(file.file),1,fp);
+	
+	
 		printf( "sum = %d\n",sum);
 		sum = read(fd,file.file,sizeof(file.file));
 		file.len = sum;
