@@ -55,9 +55,14 @@ typedef struct
 	char message[MSGSIZE];
 }historynode;
 
-
-
-
+typedef struct
+{
+	int  flag;
+	char account[SIZE];
+	char pathname[SIZE];
+	char file[900];
+	
+}filenode;
 
 typedef struct
 {
@@ -137,6 +142,7 @@ char currentgroup[SIZE];    //表示当前在和那个组聊天
 pthread_mutex_t mutex;  //创建一把锁
 pthread_cond_t cond;    //创建一个信号
 
+int File_transfer_UI(int conn_fd);
 int Find_group_chat();
 int Find_chat();
 int write_file_noc(noticenode noc);
@@ -663,7 +669,7 @@ int major_UI(int conn_fd)
 				Group_management_UI(conn_fd);
 				break;
 			case 4:
-	//			File_transfer_UI();
+				File_transfer_UI(conn_fd);
 				break;
 			case 5:
 				Modity_information_UI(conn_fd);
@@ -784,7 +790,7 @@ int Friend_add_send_UI(int conn_fd)
 
 	friendnode fid;
 	fid.flag = 7;
-	printf( "conn_cd = %d\n",conn_fd);
+	printf( "conn_fd = %d\n",conn_fd);
 	printf( "请输入你想要加为好友的 账号:");
 	gets(fid.acceptaccount);
 	strcpy(fid.sendaccount,inf.account);
@@ -795,7 +801,6 @@ int Friend_add_send_UI(int conn_fd)
         if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
 
 }
-
 
 
 
@@ -1778,5 +1783,40 @@ int Find_group_chat()
 	fclose(fpsour);
 	
 	remove("group_chat.txt_temp");
+
+}
+
+
+int File_transfer_UI(int conn_fd)
+{
+	filenode file;
+	char buf[1024];
+	int re;
+	char pathname[100];
+
+	printf( "请输入对方的账号:");
+	gets(file.account);
+
+	printf( "请输入文件路径:");
+	gets(file.pathname);
+	int fd;
+	if((fd = open(file.pathname,O_CREAT | O_WRONLY,0777)) == -1)
+	{
+		printf( "文件打开失败\n");
+		return 0;
+	}
+
+	int sum = read(fd,&file.file,900);
+
+	file.flag = 26;
+
+	while(sum != 0)
+	{        
+
+		memset(buf,0,1024);
+		memcpy(buf,&file,sizeof(filenode));
+		if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
+		sum = read(fd,&file.file,900);
+	}
 
 }

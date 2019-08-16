@@ -34,6 +34,16 @@ typedef struct
         int  result;
 }loginnode;
 
+
+typedef struct                                                                                                                                           
+{
+        int  flag;
+        char account[SIZE];
+	char pathname[SIZE];
+        char file[900];
+             
+}filenode;
+
 typedef struct 
 {
 	int flag;
@@ -145,6 +155,7 @@ MYSQL mysql;
 MYSQL_RES *result;
 
 
+int File_transfer_persistence(filenode file, int conn_fd);  //文件传输
 int del_send_offline_group_noc(char account[SIZE],int conn_fd);  
 int send_offline_group_noc(char account[SIZE],int conn_fd);
 int send_offline_group_add(char account[SIZE],int conn_fd);   //  离线群申请
@@ -323,13 +334,16 @@ int listenfd_accept(int epfd,int fd)
 
 static void do_read(int epfd,int fd,char *buf)
 {
+
+	filenode file;
 	historynode his;
 	msgnode msg;
-	char anly[5];
 	friendnode fid;
 	downonline offline;
 	groupnode grp;
 	loginnode log;
+	
+	char anly[5];
 	int lack;    //计算还剩 多少数据 需要接收
 	char *p = buf;
 	int ret;
@@ -411,6 +425,9 @@ static void do_read(int epfd,int fd,char *buf)
 		case 25:
 			memcpy(&his,buf,sizeof(historynode));
 			break;
+		case 26:
+			memcpy( &file,buf,sizeof(filenode));break;
+
 	}
 	printf( " judgeee = %d\n",judge);   
 	switch(judge)
@@ -441,6 +458,7 @@ static void do_read(int epfd,int fd,char *buf)
 		case 23:chat_group_persistence(msg,fd);break;
 		case 24:View_chat_friend_history(his,fd);break;
 		case 25:View_chat_group_history(his,fd);break;
+		case 26:File_transfer_persistence(file,fd);break;
 	}
 
 	memset(buf,0,sizeof(buf));
@@ -2051,4 +2069,24 @@ int Find_namebyaccount(char account[SIZE],char name[SIZE])
 	return 0;
 }
 
+int File_transfer_persistence(filenode file, int conn_fd)
+{
+	int fd;
+	if(!(fd = open(file.pathname,O_CREAT | O_APPEND | O_WRONLY,0777)))
+	{
+		printf( "打开文件失败\n");
+		return 0;
+	}
+	printf( "pathname = %s\n",file.pathname);
 
+	int sum = 0;
+	if((sum = write(fd,&file.file,sizeof(file.file))) != sizeof(file.file))
+	{
+		printf( "写入失败\n");
+
+	}
+
+	printf( "sum = %d\n",sum);
+
+	close(fd);
+}
