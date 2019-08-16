@@ -38,7 +38,9 @@ typedef struct
 typedef struct                                                                                                                                           
 {
         int  flag;
-        char account[SIZE];
+	int  len;
+        char sendaccount[SIZE];
+	char acceptaccount[SIZE];
 	char pathname[SIZE];
         char file[900];
              
@@ -250,7 +252,7 @@ int main( )
 	//MYSQL mysql;
         //MYSQL_RES *result;
         mysql_init(&mysql);    
-        if(!mysql_real_connect(&mysql,"127.0.0.1","root","073848","chat",0,NULL,0))  my_err("conect mysql",__LINE__);
+        if(!mysql_real_connect(&mysql,"0.0.0.0","root","073848","chat",0,NULL,0))  my_err("conect mysql",__LINE__);
      
 	if(mysql_query(&mysql,"set names utf8"))  printf( "FAlse \n");
 
@@ -2071,22 +2073,44 @@ int Find_namebyaccount(char account[SIZE],char name[SIZE])
 
 int File_transfer_persistence(filenode file, int conn_fd)
 {
-	int fd;
-	if(!(fd = open(file.pathname,O_CREAT | O_APPEND | O_WRONLY,0777)))
-	{
-		printf( "打开文件失败\n");
-		return 0;
-	}
-	printf( "pathname = %s\n",file.pathname);
+/*	int fd;
 
+	fd = open(file.pathname,O_CREAT | O_WRONLY | O_APPEND,0777);
+	perror(file.pathname);
+
+	printf( "fd = %d\n",fd);
 	int sum = 0;
-	if((sum = write(fd,&file.file,sizeof(file.file))) != sizeof(file.file))
-	{
-		printf( "写入失败\n");
-
-	}
-
+	printf( "len = %d\n",file.len);
+	sum = write(fd,file.file,file.len);
 	printf( "sum = %d\n",sum);
 
-	close(fd);
+	close(fd);   */
+	int fd;
+	int flag = 0;
+	int re;
+	char buf[1024];
+
+        online_node_t *curpos;
+
+        List_ForEach(head,curpos)
+        {
+                if(strcmp(curpos->account,file.acceptaccount) == 0)
+                {
+                        flag = 1;
+                        fd = curpos->fd;
+                        //fid.acceptid = curpos->id;
+                        break;
+                }
+        }
+
+	memset(buf,0,1024);    //初始化
+      	memcpy(buf,&file,sizeof(filenode));    //将结构体的内容转为字符串
+	if((re = (send(fd,buf,1024,0))) < 0)  printf( "错误\n");
+	
+
+
+
+
+
+	return 0;
 }

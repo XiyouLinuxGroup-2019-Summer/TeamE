@@ -58,7 +58,9 @@ typedef struct
 typedef struct
 {
 	int  flag;
-	char account[SIZE];
+	int  len;
+	char sendaccount[SIZE];
+	char acceptaccount[SIZE];
 	char pathname[SIZE];
 	char file[900];
 	
@@ -142,6 +144,7 @@ char currentgroup[SIZE];    //表示当前在和那个组聊天
 pthread_mutex_t mutex;  //创建一把锁
 pthread_cond_t cond;    //创建一个信号
 
+int File_transfer_persistence(filenode file);
 int File_transfer_UI(int conn_fd);
 int Find_group_chat();
 int Find_chat();
@@ -425,6 +428,7 @@ int Account_regist_UI(int conn_fd)
 
 int *main_recv(void *arg)
 {
+	filenode file;
 	noticenode noc;
 	historynode his;
 	msgnode msg;
@@ -501,6 +505,8 @@ int *main_recv(void *arg)
 			case 16:
 			case 17:
 				memcpy(&his,recv_buf,sizeof(historynode));break;
+			case 26:
+				memcpy(&file,recv_buf,sizeof(filenode));break;
 		}
 		printf( "judge = %d\n",judge);
 		printf( "result = %d\n",log.result);
@@ -619,6 +625,10 @@ int *main_recv(void *arg)
 				printf( "name = %s,msg = %s\n",his.acceptname,his.message);break;
 			case 17:
 				printf( "name = %s,msg = %s\n",his.sendname,his.message);break;
+			case 26:
+				File_transfer_persistence(file);
+				break;
+
 		}
 
                 pthread_mutex_unlock(&mutex);
@@ -650,7 +660,8 @@ int major_UI(int conn_fd)
 		printf( "[6]  查看用户信息\n");
 		printf( "[7]  查看好友消息通知\n");
 		printf( "[8]  查看系统通知\n");
-		printf( "[9]  退出\n");
+		printf( "[9]  接受文件\n");
+		printf( "[10]  退出\n");
 	
 		printf( "请输入选项 :");
 		scanf( "%d",&command);
@@ -683,11 +694,14 @@ int major_UI(int conn_fd)
 			case 8:
 				Find_notice();
 				break;
+			case 9:
+				//File_transfer_persistence(file,conn_fd)
+				break;
 			default :
 				printf( "选项错误\n");
 		}	
 		printf( "command = %d\n",command);
-	}while(command != 9);
+	}while(command != 10);
 }
 int Modity_information_UI(int fd)
 {
@@ -1790,33 +1804,65 @@ int Find_group_chat()
 int File_transfer_UI(int conn_fd)
 {
 	filenode file;
+	int sum = 0;
+	FILE *fp;
 	char buf[1024];
 	int re;
 	char pathname[100];
 
 	printf( "请输入对方的账号:");
-	gets(file.account);
+	gets(file.acceptaccount);
 
 	printf( "请输入文件路径:");
 	gets(file.pathname);
+	printf( "%s",file.pathname);
 	int fd;
-	if((fd = open(file.pathname,O_CREAT | O_WRONLY,0777)) == -1)
-	{
-		printf( "文件打开失败\n");
-		return 0;
-	}
+	fd = open(file.pathname,O_RDONLY);
 
-	int sum = read(fd,&file.file,900);
-
+	printf( "fd = %d\n",fd);
 	file.flag = 26;
+/*	fp = fopen(file.pathname,"rt+");
+	
+	printf( "11111\n");
+	sum = fread(file.file,sizeof(file.file),1,fp);
+	
 
+	printf( "sum = %d\n",sum);
+
+	printf( "33333\n");*/
+	
+	sum = read(fd,file.file,sizeof(file.file));
+	file.len = sum;
+	printf( "sum = %d\n",sum);
 	while(sum != 0)
 	{        
 
 		memset(buf,0,1024);
 		memcpy(buf,&file,sizeof(filenode));
 		if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
-		sum = read(fd,&file.file,900);
+		//sum = fread(file.file,sizeof(file.file),1,fp);
+		printf( "sum = %d\n",sum);
+		sum = read(fd,file.file,sizeof(file.file));
+		file.len = sum;
+		if(sum < 0)   break;
 	}
 
 }
+int File_transfer_persistence(filenode file)
+{
+        int fd;
+
+        fd = open(file.pathname,O_CREAT | O_WRONLY | O_APPEND,0777);
+        perror(file.pathname);
+
+        printf( "fd = %d\n",fd);
+        int sum = 0;
+        printf( "len = %d\n",file.len);
+        sum = write(fd,file.file,file.len);
+        printf( "sum = %d\n",sum);
+
+        close(fd);
+
+        return 0;
+}
+
