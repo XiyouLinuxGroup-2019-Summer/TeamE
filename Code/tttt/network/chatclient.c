@@ -140,7 +140,7 @@ int Flag;    //判断接收到的信息  的flag
 char chat[1024];
 informationnode inf;  //创建一个存储用户信息的结构体  一旦登录 就 保存了 本用户的 id 和账号
 char currentaccount[SIZE];//   表示当前在和谁聊天
-char currentaccount2[SIZE];
+//char currentaccount2[SIZE];
 char currentgroup[SIZE];    //表示当前在和那个组聊天
 pthread_mutex_t mutex;  //创建一把锁
 pthread_cond_t cond;    //创建一个信号
@@ -679,12 +679,15 @@ int major_UI(int conn_fd)
 				break;
 			case 6:
 				View_information_UI(conn_fd);
+
 				break;
 			case 7:
 				Find_freind(conn_fd);
+				getchar();
 				break;
 			case 8:
 				Find_notice();
+				getchar();
 				break;
 			case 9:
 				//File_transfer_persistence(file,conn_fd)
@@ -1078,7 +1081,7 @@ int Private_chat_accept(msgnode msg)
 {
 	//判断是否 在和当前 这个人聊天  通过账号判断
 	//  是 将消息打印到屏幕
-	if(strcmp(inf.account,currentaccount) == 0)
+	if(strcmp(msg.sendaccount,currentaccount) == 0)
 	{
 		printf("                                 name = %s 发送:%s\n",msg.sendname,msg.msg);
 	}
@@ -1157,9 +1160,11 @@ int Group_management_UI(int conn_fd)
 				break;
 			case 4:
 				View_add_group(conn_fd);
+				getchar();
 				break;
 			case 5:
 				View_group_members(conn_fd);
+				getchar();
 				break;
 			case 6:
 				Dissolution_group(conn_fd);
@@ -1312,6 +1317,7 @@ int write_file_group(groupnode grp)
 	{
 		printf( "写入失败\n");
 	}
+	printf("有群通知!\n");
 
 	close(fd);
 }

@@ -1120,7 +1120,6 @@ int Pravite_chat_send_persistence(msgnode msg,int conn_fd)
     		MYSQL_FIELD * field;
     	   	MYSQL_ROW row;
       	 	MYSQL_RES *result = NULL;
-
 		sprintf(data,"select name from login where id = %d",msg.sendid);
 		mysql_query(&mysql,data);
 		result = mysql_store_result(&mysql);
@@ -1129,6 +1128,7 @@ int Pravite_chat_send_persistence(msgnode msg,int conn_fd)
 		memset(data,0,sizeof(data));
 
 		sprintf(data,"select name from login where id = %d",msg.acceptid);
+printf("  send = %s     ,,,,,accept = %s\n",msg.sendaccount,msg.acceptaccount);
 		mysql_query(&mysql,data);
 		result = NULL;
 		result = mysql_store_result(&mysql);
@@ -1542,7 +1542,7 @@ int View_add_group_persistence(groupnode  grp,int conn_fd)
 	{
 		strcpy(grp.group_account,row[0]);
 		strcpy(grp.group_name,row[1]);
-	
+	printf("aaaaaaa\n");
 		grp.flag = 13;
 		memset(buf,0,1024);    //初始化
       	 	memcpy(buf,&grp,sizeof(groupnode));    //将结构体的内容转为字符串
@@ -1704,7 +1704,7 @@ int View_chat_friend_history(historynode his,int conn_fd)
         MYSQL_RES *result = NULL;
 
 	printf( "account = %s\nsendaccount = %s\n",his.acceptaccount,his.sendaccount);
-	sprintf(data,"select sendname,acceptname,message  from friend_history where (acceptaccount = '%s'  && sendaccount = '%s') || (acceptaccount = '%s'  && sendaccount = '%s' )",his.acceptaccount,his.sendaccount,his.sendaccount,his.acceptaccount );
+	sprintf(data,"select sendname,acceptname,msg from friend_history where (acceptaccount = '%s'  && sendaccount = '%s') || (acceptaccount = '%s'  && sendaccount = '%s' )",his.acceptaccount,his.sendaccount,his.sendaccount,his.acceptaccount );
 	
 	if(mysql_query(&mysql,data))  printf( "false\n");
 	result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
