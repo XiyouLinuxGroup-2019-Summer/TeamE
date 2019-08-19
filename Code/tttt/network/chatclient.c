@@ -13,7 +13,7 @@
 #include<sys/types.h>
 #include<fcntl.h>
 #include<sys/stat.h>
-
+#include<signal.h>
 
 #define MSGSIZE 512
 #define BUFFSIZE 1024
@@ -195,6 +195,8 @@ int write_file_friend(friendnode fid);   //将好友申请写入文件中
 
 int main(int argc,char **argv)
 {
+	
+	//signal(SIGINT, SIG_IGN);
 	int i;
 	pthread_t tid;
 	int ret,ret2;
@@ -845,6 +847,8 @@ int write_file_friend(friendnode fid)
 	{
 		printf( "                                 写入失败\n");
 	}
+
+	printf("有消息通知\n");
 	close(fd);
 
 
@@ -1035,6 +1039,7 @@ int  Chat_communication_UI(int conn_fd)
 				Find_chat();
 				break;
 			case 7:Find_group_chat();
+			getchar();
 			       break;
 			case 8:
 			       break;
@@ -1101,7 +1106,7 @@ int Private_chat_accept(msgnode msg)
 		{
 			printf( "写入失败\n");
 		}
-	//	printf( "                                 写入成功asdasdas\n");
+		printf( "                                 好友消息通知\n");
 		//printf( "                                 re = %d\n",re);
 		close(fd);
 		
@@ -1455,10 +1460,13 @@ int group_chat(int conn_fd)
 }
 int group_chat_accept(msgnode msg)
 {
-	if(strcmp(msg.group_account,currentaccount) == 0)
+		//printf( "                                 group = %s\n",msg.group_account);
+		//printf( "                                 curr = %s\n",currentgroup);
+	//printf("account = %s\ncurrent")
+	if(strcmp(msg.group_account,currentgroup) == 0)
 	{
-		printf( "                                 group = %s\n",msg.group_account);
-		printf( "                                 curr = %s\n",currentaccount);
+		//printf( "                                 group = %s\n",msg.group_account);
+		//printf( "                                 curr = %s\n",currentgroup);
 
 		printf( "                                 name = %s  发送 :%s\n",msg.sendname,msg.msg);
 	}
@@ -1477,6 +1485,8 @@ int group_chat_accept(msgnode msg)
 		{
 			printf( "                                 写入失败\n");
 		}
+
+		printf("有通知\n");
 	
 		close(fd);
 	
@@ -1498,9 +1508,11 @@ int View_chat_history(int conn_fd)
 	{
 		case 1:
 			View_chat_friend_history(conn_fd);
+			getchar();
 			break;
 		case 2:
 			View_chat_group_history(conn_fd);
+			getchar();
 			break;
 		default:
 			printf( "                                 选项错误");
@@ -1555,7 +1567,7 @@ int write_file_noc(noticenode noc)
 	{
 		printf( "                                 写入失败\n");
 	}
-
+	printf("有通知\n");
 	close(fd);
 
 }
@@ -1647,7 +1659,7 @@ int Find_chat()
 	}
 	
 	int sum = read(fd,&msg,sizeof(msgnode));
-	printf( "sum = %d\n",sum);
+//	printf( "sum = %d\n",sum);
 	while(sum != 0)
 	{
 		printf( "                                 是否还想继续阅读 好友消息\n");
@@ -1657,10 +1669,10 @@ int Find_chat()
 		if(ch == 'N') break;
 		
 		printf("                                 name = %s 发送:%s\n",msg.sendname,msg.msg);
-		printf( "                                 num = %d\n",num);
+		//printf( "                                 num = %d\n",num);
 		num++;
 		sum = read(fd,&msg,sizeof(msgnode));
-		printf( "                                 sum = %d\n",sum);
+	//	printf( "                                 sum = %d\n",sum);
 	}
 
 	if(sum == 0)   printf( "                                 无通知\n");
@@ -1699,6 +1711,7 @@ int Find_chat()
 	fclose(fpsour);
 	
 	remove("chat.txt_temp");
+	getchar();
 
 }
 int Find_group_chat()
@@ -1719,14 +1732,14 @@ int Find_group_chat()
 	printf( "sum = %d\n",sum);
 	while(sum != 0)
 	{
-		printf( "                                 是否还想继续阅读 好友消息\n");
+		printf( "                                 是否还想继续阅读 群消息\n");
 		printf("                                 Y / N:");
 		scanf( "%c",&ch);
 		getchar();
 		if(ch == 'N') break;
 		
 		printf("                                 name = %s 发送:%s\n",msg.sendname,msg.msg);
-		printf( "                                 num = %d\n",num);
+		//printf( "                                 num = %d\n",num);
 		num++;
 		sum = read(fd,&msg,sizeof(msgnode));
 		printf( "sum = %d\n",sum);
