@@ -292,8 +292,8 @@ static void handle_events(int epfd,struct epoll_event *events,int num,int listen
     			    {
         		        if(curpos->fd == events[i].data.fd)
                			{
-					List_DelNode(curpos);
-					printf( "删除成功\n");
+													List_DelNode(curpos);
+													printf( "删除成功\n");
                		   		 break;
                			}
         		    }
@@ -1486,10 +1486,16 @@ int exit_group_persistence(groupnode grp)
         MYSQL_FIELD * field;
         MYSQL_ROW row;
         MYSQL_RES *result = NULL;
-
+int fd;
 	sprintf(data,"delete from group_members where (group_account = '%s' && user_account = '%s') ",grp.group_account,grp.user_account);
 	mysql_query(&mysql,data);
+// 群主退出 解散群,
+memset(data,0,sizeof(data));
+grp.id = Find_idbyaccount(grp.user_account);
 
+Dissolution_group_persistence(grp,fd);
+
+//普通成员退群 通知群主
 	//更新群人数
 
 	memset(data,0,sizeof(data));
@@ -1497,8 +1503,10 @@ int exit_group_persistence(groupnode grp)
 	sprintf(data,"select group_members from group_information where group_account = '%s'",grp.group_account);
 	mysql_query(&mysql,data);
         result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+if(result == NULL)   return 0;
 	row = mysql_fetch_row(result);
 
+if(row == NULL)    return  0;
 	memset(data,0,sizeof(data));
 	sprintf(data,"update group_information set group_members = %d where group_account = '%s'",atoi(row[0])-1,grp.group_account);
 	mysql_query(&mysql,data);
@@ -1625,7 +1633,10 @@ int Dissolution_group_persistence(groupnode grp,int conn_fd)
 		mysql_query(&mysql,data);
 	        
 		result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+		if(result == NULL)   return 0;
 		row = mysql_fetch_row(result);
+
+		if(row == NULL)   return 0;
 		group_id = atoi(row[0]);
 	
 		//删除这条数据
@@ -2180,7 +2191,7 @@ int Find_idbyaccount(char account[SIZE])
 
 	if(result == NULL)   //若没有这个账号接受的消息 退出
 	{
-		printf( " 2178     结果集为空\n");
+		printf( " 2194     结果集为空\n");
 		return 0;
 	}
 	row = mysql_fetch_row(result);

@@ -938,8 +938,8 @@ void Find_freind(int conn_fd)
 	fclose(fpsour);
 	
 	remove("friend.txt_temp");
-	printf( "                                 judgeee = %d\n",fid.flag);
-	printf( "                                 restt = %d\n",fid.result);
+	//printf( "                                 judgeee = %d\n",fid.flag);
+	//printf( "                                 restt = %d\n",fid.result);
 		
 }
 int Friend_del_UI(int conn_fd)
@@ -1623,10 +1623,10 @@ int Find_notice()   // 消息通知
 	FILE *fpsour,*fptarg;
 
 	fpsour = fopen("noc.txt_temp","rb");
-	if(NULL == fpsour)   printf( "不能打开文件 781\n");
+	if(NULL == fpsour)   printf( "不能打开文件 1626\n");
 
 	fptarg = fopen("noc.txt","wb");
-	if(NULL == fptarg)    printf( "不能打开文件  784\n");
+	if(NULL == fptarg)    printf( "不能打开文件  1629\n");
 	
 	noticenode  temp;
 
