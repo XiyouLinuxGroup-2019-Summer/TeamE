@@ -157,6 +157,8 @@ MYSQL mysql;
 MYSQL_RES *result;
 
 
+int judge_is_friend(int friend1,int friend2);     //判断是否为 好友
+int Find_idbyaccount(char account[SIZE]);      //通过 账号 找 id
 int del_offline_group_add(char account[SIZE],int conn_fd);
 int File_transfer_persistence(filenode file, int conn_fd);  //文件传输
 int del_send_offline_group_noc(char account[SIZE],int conn_fd);  
@@ -978,12 +980,16 @@ int Friend_all_view_persistence(informationnode inf,int conn_fd)
         MYSQL_RES *result_account = NULL;
 	mysql_query(&mysql,"select friend1,friend2 from friend");
         result_id = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
-
+	if(result_id == NULL)  
+	{
+			printf("结果集 为空, 985\n");
+			return 0;
+	}
 
 	while(row = mysql_fetch_row(result_id))
 	{
+		if(row == NULL)   return 0;
 		memset(data,0,sizeof(data));
-
 		if(atoi(row[0]) == inf.id)
 		{
 			inf.flag = 9;
@@ -991,7 +997,7 @@ int Friend_all_view_persistence(informationnode inf,int conn_fd)
 			mysql_query(&mysql,data);
 			result_account = mysql_store_result(&mysql);
 			row1 = mysql_fetch_row(result_account);
-			
+			printf("asdsdasdsada\n");
 			strcpy(inf.account,row1[0]);
 			strcpy(inf.name,row1[1]);
 			inf.line = atoi(row1[2]);
@@ -1089,7 +1095,15 @@ int Pravite_chat_send_persistence(msgnode msg,int conn_fd)
 	int  re;
 	int flag = 0;
         online_node_t *curpos;
+		int friend1 = 0,friend2 = 0;
 
+		friend1 = Find_idbyaccount(msg.sendaccount);
+		friend2 = Find_idbyaccount(msg.acceptaccount);
+	printf("id1 = %d \n  id2 = %d  \n",friend1,friend2);
+
+
+int judge = judge_is_friend(friend1,friend2);
+if(judge == 0)  return 0;
         List_ForEach(head,curpos)
         {
                 if(strcmp(curpos->account,msg.acceptaccount) == 0)
@@ -2092,18 +2106,7 @@ int Find_namebyaccount(char account[SIZE],char name[SIZE])
 
 int File_transfer_persistence(filenode file, int conn_fd)
 {
-/*	int fd;
 
-	fd = open(file.pathname,O_CREAT | O_WRONLY | O_APPEND,0777);
-	perror(file.pathname);
-
-	printf( "fd = %d\n",fd);
-	int sum = 0;
-	printf( "len = %d\n",file.len);
-	sum = write(fd,file.file,file.len);
-	printf( "sum = %d\n",sum);
-
-	close(fd);   */
 	int fd;
 	int flag = 0;
 	int re;
@@ -2129,4 +2132,63 @@ int File_transfer_persistence(filenode file, int conn_fd)
 	perror(buf);
 	printf( "reeeeee   =%d\n",re);
 	return 0;
+}
+
+
+int judge_is_friend(int friend1,int friend2)
+{
+	char data[1024];
+	MYSQL_FIELD * field;
+  MYSQL_ROW row;
+  MYSQL_RES *result = NULL;
+
+	sprintf(data,"select *  from friend where ((friend1 = %d && friend2 = %d)  || (friend1 = %d && friend2 = %d ))",friend1,friend2,friend2,friend1);
+	printf("%d %d \n",friend1,friend2);
+	if(mysql_query(&mysql,data))  printf( "false\n");
+	result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+
+	if(result == NULL)   //若没有这个账号接受的消息 退出
+	{
+		printf( " 2139     结果集为空\n");
+		return 0;
+	}
+
+	row = mysql_fetch_row(result);
+
+		if(NULL == row)   return 0;
+
+
+return 1;
+}
+
+
+
+
+
+
+
+int Find_idbyaccount(char account[SIZE])
+{
+	int id;
+	char data[1024];
+	MYSQL_FIELD * field;
+        MYSQL_ROW row;
+        MYSQL_RES *result = NULL;
+	sprintf(data,"select id  from login where account = '%s'",account);
+	if(mysql_query(&mysql,data))  printf( "false\n");
+	result = mysql_store_result(&mysql);//将查询的全部结果读取到客户端
+
+	if(result == NULL)   //若没有这个账号接受的消息 退出
+	{
+		printf( " 2178     结果集为空\n");
+		return 0;
+	}
+	row = mysql_fetch_row(result);
+
+		if(NULL == row)   return 0;
+	id = atoi(row[0]);
+	printf("id = %s\n",row[0]);
+	printf("id = %d\n",id);
+
+	return id;
 }

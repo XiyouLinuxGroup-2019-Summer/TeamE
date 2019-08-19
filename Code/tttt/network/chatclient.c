@@ -18,7 +18,7 @@
 #define MSGSIZE 512
 #define BUFFSIZE 1024
 #define MAXSIZE 1024
-#define IPADDRESS "127.0.0.1"
+#define IPADDRESS "192.168.3.206"
 #define SERV_PORT 45070
 #define FDSIZE 1024
 #define SIZE 30
@@ -196,7 +196,7 @@ int write_file_friend(friendnode fid);   //将好友申请写入文件中
 int main(int argc,char **argv)
 {
 	
-	//signal(SIGINT, SIG_IGN);
+	signal(SIGINT, SIG_IGN);
 	int i;
 	pthread_t tid;
 	int ret,ret2;
@@ -357,8 +357,10 @@ int Account_login_UI(int conn_fd)
 	loginnode log;
 	printf("                                 请输入账号: ");
 	gets(log.account);
+	strcpy(inf.account,log.account);
 	printf("                                 请输入密码: ");
 	gets(log.password);
+
 	log.flag = 1;
 	memset(buf,0,1024);    //初始化
 	memcpy(buf,&log,sizeof(loginnode));    //将结构体的内容转为字符串
@@ -582,7 +584,7 @@ int *main_recv(void *arg)
 					printf( "                                 生日:%s\n",inf.data);
 					printf( "                                 地址:%s\n",inf.address);
 					printf( "                                 星座:%s\n",inf.constellation);
-					printf( "邮箱:%s\n",inf.email);
+					printf( "                                 邮箱:%s\n",inf.email);
 				}
 				break;
 			case 7:
@@ -782,10 +784,12 @@ int Friend_management_UI(int conn_fd)
 			case 3:
 				Friend_all_view(conn_fd);   //查看所有好友
 				usleep(1000);
+				getchar();
 				break;
 			case 4:
 				Friend_view_UI(conn_fd);  //查看所有在线好友
 				usleep(1000);
+				getchar();
 				break;
 			default :
 				printf( "                                 选项错误\n");
@@ -848,7 +852,7 @@ int write_file_friend(friendnode fid)
 		printf( "                                 写入失败\n");
 	}
 
-	printf("有消息通知\n");
+	printf("有好友申请通知\n");
 	close(fd);
 
 
@@ -1307,6 +1311,9 @@ int deal_group(int conn_fd)
 	remove("group.txt_temp");
 
 }
+
+
+
 int write_file_group(groupnode grp)
 {
 	int fd;
@@ -1322,7 +1329,7 @@ int write_file_group(groupnode grp)
 	{
 		printf( "写入失败\n");
 	}
-	printf("有群通知!\n");
+	printf("有群申请通知!\n");
 
 	close(fd);
 }
@@ -1486,7 +1493,7 @@ int group_chat_accept(msgnode msg)
 			printf( "                                 写入失败\n");
 		}
 
-		printf("有通知\n");
+		printf("有一条群聊通知\n");
 	
 		close(fd);
 	
@@ -1551,6 +1558,8 @@ int View_chat_group_history(int conn_fd)
 	memcpy(buf,&his,sizeof(historynode));
 	if((re = (send(conn_fd,buf,1024,0))) < 0)  printf( "错误\n");
 }
+
+
 int write_file_noc(noticenode noc)
 {
 	int fd;
@@ -1567,7 +1576,7 @@ int write_file_noc(noticenode noc)
 	{
 		printf( "                                 写入失败\n");
 	}
-	printf("有通知\n");
+	printf("有一条系统通知\n");
 	close(fd);
 
 }
@@ -1782,6 +1791,7 @@ int Find_group_chat()
 	
 	remove("group_chat.txt_temp");
 
+	getchar();
 }
 
 
